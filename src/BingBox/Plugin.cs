@@ -3,6 +3,7 @@ using BepInEx.Configuration;
 using BingBox.Logging;
 using BingBox.Settings;
 using BingBox.UI;
+using BingBox.Utils;
 
 namespace BingBox;
 
@@ -52,6 +53,8 @@ public partial class Plugin : BaseUnityPlugin
     private void Awake()
     {
         Log = new LoggerWrapper(Logger);
+
+        DependencyLoader.Init();
 
         _usernameConfig = Config.Bind("General", "Username", GetRandomDefaultUsername(), "Your BingBox username.");
         _liveUrlConfig = Config.Bind("General", "LiveUrl", "https://bingbox.live", "The BingBox Live URL.");

@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using BingBox.Settings;
+using BingBox.Utils;
 using Zorro.Core;
 using Zorro.Settings;
 

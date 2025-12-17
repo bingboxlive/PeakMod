@@ -1,6 +1,6 @@
 using System;
 
-namespace BingBox;
+namespace BingBox.Utils;
 
 public static class RoomIdManager
 {
