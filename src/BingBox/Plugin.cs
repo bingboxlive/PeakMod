@@ -2,6 +2,7 @@
 using BepInEx.Configuration;
 using BingBox.Logging;
 using BingBox.Settings;
+using BingBox.UI;
 
 namespace BingBox;
 
@@ -15,6 +16,8 @@ public partial class Plugin : BaseUnityPlugin
     private static ConfigEntry<string> _userIdConfig = null!;
     public static ConfigEntry<bool> DopplerConfig = null!;
     public static ConfigEntry<bool> DebugConfig = null!;
+    public static bool SyncRoomWithLobby { get; set; } = true;
+
     public static string Username
     {
         get => _usernameConfig.Value;
@@ -48,6 +51,8 @@ public partial class Plugin : BaseUnityPlugin
 
     private void Awake()
     {
+        Log = new LoggerWrapper(Logger);
+
         _usernameConfig = Config.Bind("General", "Username", GetRandomDefaultUsername(), "Your BingBox username.");
         _liveUrlConfig = Config.Bind("General", "LiveUrl", "https://bingbox.live", "The BingBox Live URL.");
         _userIdConfig = Config.Bind("General", "UserId", "", "Unique Auto-Generated User ID. Do not edit.");
@@ -67,6 +72,7 @@ public partial class Plugin : BaseUnityPlugin
 
         BingBoxSettings.Initialize();
         gameObject.AddComponent<SettingsInjector>();
+        gameObject.AddComponent<PauseMenuInjector>();
     }
 
     private string GenerateRandomId()

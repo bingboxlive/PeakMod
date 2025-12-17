@@ -8,4 +8,9 @@
   </PropertyGroup>
 
 
+
+  <ItemGroup>
+    <EmbeddedResource Include="Images\*.png" />
+  </ItemGroup>
+
 </Project>
