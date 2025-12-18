@@ -9,6 +9,8 @@ namespace BingBox.WebRTC
 {
     public class BingBoxWebClient : MonoBehaviour
     {
+        public static BingBoxWebClient? Instance { get; private set; }
+
         private ClientWebSocket? _ws;
         private CancellationTokenSource? _cts;
         private bool _isConnecting;
@@ -16,6 +18,7 @@ namespace BingBox.WebRTC
 
         private void Awake()
         {
+            Instance = this;
             _rtcManager = gameObject.AddComponent<BingBoxRtcManager>();
             _rtcManager.Initialize(this);
         }
@@ -91,7 +94,7 @@ namespace BingBox.WebRTC
             }
         }
 
-        private void SendJoinRoom()
+        public void SendJoinRoom()
         {
             var roomId = RoomIdManager.CurrentRoomId;
             var userId = Plugin.UserId;

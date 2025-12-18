@@ -16,6 +16,7 @@ public class UsernameSetting : CustomStringSetting
         {
             Plugin.Username = Value;
             Plugin.Log.LogInfo($"Username Setting Applied: {Value}");
+            BingBox.WebRTC.BingBoxWebClient.Instance?.SendJoinRoom();
         }
     }
 

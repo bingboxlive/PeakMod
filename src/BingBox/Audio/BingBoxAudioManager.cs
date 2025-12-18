@@ -169,4 +169,12 @@ public class BingBoxAudioManager : MonoBehaviour
             _audioSource.transform.position = _currentTarget.transform.position;
         }
     }
+
+    public void SetDoppler(bool enabled)
+    {
+        if (_audioSource != null)
+        {
+            _audioSource.dopplerLevel = enabled ? 1.0f : 0.0f;
+        }
+    }
 }
