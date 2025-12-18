@@ -209,18 +209,6 @@ public static class FooterUI
         pos.z = 0;
         rt.localPosition = pos;
 
-
-        Plugin.Log.LogInfo($"[FooterUI] Inspecting Clone '{clone.name}' children:");
-        foreach (var c in clone.GetComponentsInChildren<Transform>())
-        {
-            Plugin.Log.LogInfo($" - {c.name} (Type: {c.GetType().Name})");
-            var txt = c.GetComponent<TextMeshProUGUI>();
-            if (txt != null) Plugin.Log.LogInfo($"   ^ Text: '{txt.text}'");
-            var img = c.GetComponent<Image>();
-            if (img != null) Plugin.Log.LogInfo($"   ^ Image: {img.sprite?.name}");
-        }
-
-
         clone.SetActive(true);
 
 

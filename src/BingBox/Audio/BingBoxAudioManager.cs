@@ -110,9 +110,10 @@ public class BingBoxAudioManager : MonoBehaviour
     {
         if (_audioSource == null || _clip == null) return;
 
-        for (int i = _trackedItems.Count - 1; i >= 0; i--)
+        // Optimization: Lazy cleanup from the top of the stack
+        while (_trackedItems.Count > 0 && _trackedItems[_trackedItems.Count - 1] == null)
         {
-            if (_trackedItems[i] == null) _trackedItems.RemoveAt(i);
+            _trackedItems.RemoveAt(_trackedItems.Count - 1);
         }
 
         if (_trackedItems.Count > 0)
@@ -144,6 +145,17 @@ public class BingBoxAudioManager : MonoBehaviour
 
     private void LateUpdate()
     {
+        // Safety check: if current target is destroyed unexpectedly (bypassing Unregister), handle it.
+        // In Unity, a destroyed object compares equal to null.
+        if (_currentTarget == null && _trackedItems.Count > 0)
+        {
+            // If we have items but no target, something is stale. Prune all nulls and retry.
+            // This is O(N) but only happens on error/unexpected destroy.
+            _trackedItems.RemoveAll(item => item == null);
+            UpdateTarget();
+            return;
+        }
+
         if (_audioSource != null && _currentTarget != null)
         {
             _audioSource.transform.position = _currentTarget.transform.position;
