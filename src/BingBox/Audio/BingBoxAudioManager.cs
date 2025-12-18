@@ -17,6 +17,12 @@ public class BingBoxAudioManager : MonoBehaviour
     private AudioSource? _audioSource;
     private AudioClip? _clip;
 
+    private void Awake()
+    {
+        Instance = this;
+        CreateAudioSource();
+    }
+
     private static readonly HashSet<string> _targetNames = new HashSet<string>
     {
         "BingBong",
@@ -27,12 +33,7 @@ public class BingBoxAudioManager : MonoBehaviour
         "BingBong_Prop(Clone)"
     };
 
-    private void Awake()
-    {
-        Instance = this;
-        CreateAudioSource();
-        StartCoroutine(LoadAudioClip());
-    }
+
 
     private void CreateAudioSource()
     {
@@ -48,35 +49,42 @@ public class BingBoxAudioManager : MonoBehaviour
         _audioSource.maxDistance = 30.0f;
     }
 
-    private IEnumerator LoadAudioClip()
-    {
-        string pluginPath = Path.GetDirectoryName(Plugin.InstanceInfo.Location);
-        string audioPath = Path.Combine(pluginPath, "test.mp3");
+    private BingBox.WebRTC.BingBoxAudioSink? _audioSink;
 
-        if (!File.Exists(audioPath))
+    private void Start()
+    {
+        // 10 seconds buffer length for the clip, but it streams via callback so length is virtual
+        _clip = AudioClip.Create("BingLive", 48000 * 2, 1, 48000, true, OnAudioRead);
+
+        if (_audioSource != null)
         {
-            Plugin.Log.LogError($"[AudioManager] test.mp3 not found at: {audioPath}");
-            yield break;
+            _audioSource.clip = _clip;
+            _audioSource.loop = true;
+            _audioSource.Play();
+        }
+    }
+
+    private void OnAudioRead(float[] data)
+    {
+        if (_audioSink == null)
+        {
+            // Silence
+            Array.Clear(data, 0, data.Length);
+            return;
         }
 
-        string url = "file://" + audioPath;
-        using (UnityWebRequest uwr = UnityWebRequestMultimedia.GetAudioClip(url, AudioType.MPEG))
-        {
-            yield return uwr.SendWebRequest();
+        _audioSink.Read(data, 1);
+    }
 
-            if (uwr.result == UnityWebRequest.Result.ConnectionError || uwr.result == UnityWebRequest.Result.ProtocolError)
+    private void Update()
+    {
+        // Resolve Sink ref on main thread
+        if (_audioSink == null)
+        {
+            var rtcManager = GetComponent<BingBox.WebRTC.BingBoxRtcManager>();
+            if (rtcManager != null)
             {
-                Plugin.Log.LogError($"[AudioManager] Failed to load audio: {uwr.error}");
-            }
-            else
-            {
-                _clip = DownloadHandlerAudioClip.GetContent(uwr);
-                _clip.name = "BingBox_Test_Audio";
-                if (_audioSource != null)
-                {
-                    _audioSource.clip = _clip;
-                    UpdateTarget();
-                }
+                _audioSink = rtcManager.AudioSink;
             }
         }
     }

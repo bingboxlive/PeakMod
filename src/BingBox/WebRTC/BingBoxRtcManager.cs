@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using SIPSorcery.Net;
 using SIPSorcery.SIP;
 using SIPSorcery.Media;
+using SIPSorceryMedia.Abstractions;
 using BingBox.Utils;
 using UnityEngine;
 
@@ -14,6 +15,7 @@ namespace BingBox.WebRTC
         private RTCPeerConnection? _pc;
         private BingBoxWebClient _client = null!;
         private readonly List<RTCIceCandidateInit> _pendingCandidates = new List<RTCIceCandidateInit>();
+        public BingBoxAudioSink AudioSink { get; } = new BingBoxAudioSink();
 
         public void Initialize(BingBoxWebClient client)
         {
@@ -67,6 +69,19 @@ namespace BingBox.WebRTC
             var opusFormat = new SDPAudioVideoMediaFormat(SDPMediaTypesEnum.audio, 111, "opus", 48000, 2, "minptime=10;useinbandfec=1");
             var audioTrack = new MediaStreamTrack(SDPMediaTypesEnum.audio, false, new List<SDPAudioVideoMediaFormat> { opusFormat });
             _pc.addTrack(audioTrack);
+
+            _pc.OnAudioFormatsNegotiated += (formats) =>
+            {
+                Plugin.Log.LogInfo("[RtcManager] Audio formats negotiated.");
+            };
+
+            _pc.OnRtpPacketReceived += (remoteEP, type, packet) =>
+            {
+                if (type == SDPMediaTypesEnum.audio && packet.Header.PayloadType == 111) // 111 is typical Opus dynamic PT
+                {
+                    AudioSink.GotAudioRtp(remoteEP, packet.Header.SyncSource, packet.Header.SequenceNumber, packet.Header.Timestamp, packet.Header.PayloadType, packet.Header.MarkerBit == 1, packet.Payload);
+                }
+            };
 
             _pc.onicecandidate += (candidate) =>
             {
