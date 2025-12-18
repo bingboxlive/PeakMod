@@ -12,6 +12,7 @@ namespace BingBox;
 public partial class Plugin : BaseUnityPlugin
 {
     internal static LoggerWrapper Log { get; private set; } = null!;
+    public static BepInEx.PluginInfo InstanceInfo { get; private set; } = null!;
 
     private static ConfigEntry<string> _usernameConfig = null!;
     private static ConfigEntry<string> _liveUrlConfig = null!;
@@ -68,9 +69,14 @@ public partial class Plugin : BaseUnityPlugin
 
         Log.LogInfo($"BingBox Loaded - User: {_usernameConfig.Value}, ID: {_userIdConfig.Value}, Room: {newRoomId}");
 
+        InstanceInfo = Info;
         BingBoxSettings.Initialize();
         gameObject.AddComponent<SettingsInjector>();
         gameObject.AddComponent<PauseMenuInjector>();
+        gameObject.AddComponent<BingBox.Audio.BingBoxAudioManager>();
+
+        HarmonyLib.Harmony.CreateAndPatchAll(typeof(BingBox.Audio.ItemAudioPatch), "pro.kenn.bingbox.audio");
+
     }
 
     private void Start()
