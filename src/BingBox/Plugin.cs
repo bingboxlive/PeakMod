@@ -4,6 +4,7 @@ using BingBox.Logging;
 using BingBox.Settings;
 using BingBox.UI;
 using BingBox.Utils;
+using BingBox.WebRTC;
 
 namespace BingBox;
 
@@ -24,11 +25,9 @@ public partial class Plugin : BaseUnityPlugin
         get => _usernameConfig.Value;
         set
         {
-            if (_usernameConfig.Value != value)
-            {
-                _usernameConfig.Value = value;
-                Plugin.Log.LogInfo($"Config Saved: Username = {value}");
-            }
+            if (_usernameConfig.Value == value) return;
+            _usernameConfig.Value = value;
+            Plugin.Log.LogInfo($"Config Saved: Username = {value}");
         }
     }
 
@@ -37,18 +36,13 @@ public partial class Plugin : BaseUnityPlugin
         get => _liveUrlConfig.Value;
         set
         {
-            if (_liveUrlConfig.Value != value)
-            {
-                _liveUrlConfig.Value = value;
-                Plugin.Log.LogInfo($"Config Saved: LiveUrl = {value}");
-            }
+            if (_liveUrlConfig.Value == value) return;
+            _liveUrlConfig.Value = value;
+            Plugin.Log.LogInfo($"Config Saved: LiveUrl = {value}");
         }
     }
 
-    public static string UserId
-    {
-        get => _userIdConfig.Value;
-    }
+    public static string UserId => _userIdConfig.Value;
 
     private void Awake()
     {
@@ -56,15 +50,16 @@ public partial class Plugin : BaseUnityPlugin
 
         DependencyLoader.Init();
 
-        _usernameConfig = Config.Bind("General", "Username", GetRandomDefaultUsername(), "Your BingBox username.");
+        _usernameConfig = Config.Bind("General", "Username", StringUtils.GetRandomDefaultUsername(), "Your BingBox username.");
         _liveUrlConfig = Config.Bind("General", "LiveUrl", "https://bingbox.live", "The BingBox Live URL.");
         _userIdConfig = Config.Bind("General", "UserId", "", "Unique Auto-Generated User ID. Do not edit.");
 
         DopplerConfig = Config.Bind("Settings", "DopplerEffect", true, "Enable Doppler Effect.");
         DebugConfig = Config.Bind("Settings", "EnableDebugging", true, "Enable Debug Logging.");
+
         if (string.IsNullOrEmpty(_userIdConfig.Value))
         {
-            _userIdConfig.Value = GenerateRandomId();
+            _userIdConfig.Value = StringUtils.GenerateRandomId();
             Plugin.Log.LogInfo($"Generated New User ID: {_userIdConfig.Value}");
         }
 
@@ -76,46 +71,6 @@ public partial class Plugin : BaseUnityPlugin
         BingBoxSettings.Initialize();
         gameObject.AddComponent<SettingsInjector>();
         gameObject.AddComponent<PauseMenuInjector>();
-    }
-
-    private string GenerateRandomId()
-    {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        var random = new System.Random();
-        char[] stringChars = new char[5];
-        for (int i = 0; i < stringChars.Length; i++)
-        {
-            stringChars[i] = chars[random.Next(chars.Length)];
-        }
-        return new string(stringChars);
-    }
-
-    private string GetRandomDefaultUsername()
-    {
-        string[] names = new[]
-        {
-            "bing bong", "bong bing", "ding dong", "ping pong", "sing song", "wong tong",
-            "bang bong", "bung bong", "bing bang", "king kong", "zing zong", "bling bong",
-            "king bong", "bink bonk", "blang blong", "zong zing", "bonkers bings",
-            "bingle dangle", "bongle bing", "bingo bongo", "pong ping", "dong ding",
-            "song sing", "long strong", "gong song", "bongus", "bingerton", "bongeroni",
-            "bingly", "boing boing", "boing bong", "bing boing", "bingle", "bongo",
-            "dingle dong", "dongle ding", "ringle rong", "rongle ring", "pinglet",
-            "pongus", "kling klong", "klong kling", "bingus", "bungo", "blingus",
-            "blongo", "zingle zongle", "zongle zingle", "binkus bonkus", "bingus bongus",
-            "bango bango", "bango bingo", "bigga bonga", "bim bom", "blim blom",
-            "bring brong", "bip bop", "click clack", "clink clonk", "crink cronk",
-            "dingo dongo", "dink donk", "fingle fangle", "flim flam", "fling flong",
-            "gling glong", "hingle hangle", "jingle jangle", "jing jong", "kink konk",
-            "ling long", "ming mong", "ning nong", "pink ponk", "pling plong",
-            "prang prong", "quing quong", "ring rong", "shing shong", "sing songy",
-            "sking skong", "sling slong", "sting stong", "swing swong", "thring throng",
-            "ting tong", "tring trong", "ving vong", "bimp bomp", "wing wong",
-            "wingle wangle", "ying yong", "zig zag", "zing zang", "zink zonk",
-            "zip zap", "zippity zong", "zongle", "zingle", "binger bonger"
-        };
-        var random = new System.Random();
-        return names[random.Next(names.Length)];
     }
 
     private void Start()
@@ -130,6 +85,8 @@ public partial class Plugin : BaseUnityPlugin
             SettingsHandler.Instance.AddSetting(new ResetDefaultsSetting());
 
             Log.LogInfo("Registered BingBox Settings (Reordered)");
+
+            gameObject.AddComponent<BingBoxWebClient>();
         }
         else
         {

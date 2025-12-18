@@ -106,7 +106,8 @@ public class SettingsInjector : MonoBehaviour
         "Enable Debugging",
         "BingBox Live URL",
         "Username",
-        "User ID"
+        "User ID",
+        "Reset Defaults"
     };
 
     [HarmonyPatch(typeof(LocalizedText), "GetText", new Type[] { typeof(string), typeof(bool) })]

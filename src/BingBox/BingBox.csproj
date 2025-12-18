@@ -8,12 +8,15 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
-
-
   <ItemGroup>
     <EmbeddedResource Include="Images\*.png" />
-    <PackageReference Include="UnityEngine.Modules" Version="2022.3.6" IncludeAssets="compile" />
+    <PackageReference Include="UnityEngine.Modules" Version="2020.3.48" IncludeAssets="compile" />
     <PackageReference Include="SIPSorcery" Version="8.0.0" />
+    <PackageReference Include="Concentus" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all" />
   </ItemGroup>
 
   <Target Name="EmbedDependencies" AfterTargets="ResolveAssemblyReferences">
