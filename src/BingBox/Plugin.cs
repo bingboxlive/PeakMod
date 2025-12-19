@@ -39,7 +39,10 @@ public partial class Plugin : BaseUnityPlugin
         {
             if (_liveUrlConfig.Value == value) return;
             _liveUrlConfig.Value = value;
-            Plugin.Log.LogInfo($"Config Saved: LiveUrl = {value}");
+            if (DebugConfig != null && DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"Config Saved: LiveUrl = {value}");
+            }
         }
     }
 
@@ -52,7 +55,7 @@ public partial class Plugin : BaseUnityPlugin
         DependencyLoader.Init();
 
         _usernameConfig = Config.Bind("General", "Username", StringUtils.GetRandomDefaultUsername(), "Your BingBox username.");
-        _liveUrlConfig = Config.Bind("General", "LiveUrl", "https://bingbox.live", "The BingBox Live URL.");
+        _liveUrlConfig = Config.Bind("General", "LiveUrl", "bingbox.live", "The BingBox Live URL.");
         _userIdConfig = Config.Bind("General", "UserId", "", "Unique Auto-Generated User ID. Do not edit.");
 
         DopplerConfig = Config.Bind("Settings", "DopplerEffect", true, "Enable Doppler Effect.");
@@ -65,7 +68,10 @@ public partial class Plugin : BaseUnityPlugin
         }
 
         string newRoomId = RoomIdManager.GenerateNewRoomId();
-        Log.LogInfo($"Generated Session Room ID: {newRoomId}");
+        if (DebugConfig.Value)
+        {
+            Log.LogInfo($"Generated Session Room ID: {newRoomId}");
+        }
 
         Log.LogInfo($"BingBox Loaded - User: {_usernameConfig.Value}, ID: {_userIdConfig.Value}, Room: {newRoomId}");
 
@@ -90,7 +96,10 @@ public partial class Plugin : BaseUnityPlugin
             SettingsHandler.Instance.AddSetting(new UserIdSetting());
             SettingsHandler.Instance.AddSetting(new ResetDefaultsSetting());
 
-            Log.LogInfo("Registered BingBox Settings (Reordered)");
+            if (DebugConfig.Value)
+            {
+                Log.LogInfo("Registered BingBox Settings (Reordered)");
+            }
 
             gameObject.AddComponent<BingBoxWebClient>();
         }

@@ -15,7 +15,10 @@ public class LiveUrlSetting : CustomStringSetting
         if (Value != Plugin.LiveUrl)
         {
             Plugin.LiveUrl = Value;
-            Plugin.Log.LogInfo($"Live URL Setting Applied: {Value}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"Live URL Setting Applied: {Value}");
+            }
         }
     }
 

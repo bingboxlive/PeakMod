@@ -29,7 +29,10 @@ public static class QueueUI
         var scrollObjName = "BingBox_QueueScrollView";
         if (parent.Find(scrollObjName) != null) return;
 
-        Plugin.Log.LogInfo("[QueueUI] Injecting Queue ScrollView...");
+        if (Plugin.DebugConfig.Value)
+        {
+            Plugin.Log.LogInfo("[QueueUI] Injecting Queue ScrollView...");
+        }
 
 
         var scrollObj = new GameObject(scrollObjName);

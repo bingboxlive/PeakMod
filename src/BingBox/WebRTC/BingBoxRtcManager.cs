@@ -242,8 +242,11 @@ namespace BingBox.WebRTC
 
         private async Task HandleOffer(string json)
         {
-            Plugin.Log.LogInfo($"[RtcManager] Received OFFER raw JSON: {json}");
-            Plugin.Log.LogInfo("[RtcManager] Creating PeerConnection...");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[RtcManager] Received OFFER raw JSON: {json}");
+                Plugin.Log.LogInfo("[RtcManager] Creating PeerConnection...");
+            }
 
             var config = new RTCConfiguration
             {
@@ -261,7 +264,10 @@ namespace BingBox.WebRTC
 
             _pc.OnAudioFormatsNegotiated += (formats) =>
             {
-                Plugin.Log.LogInfo("[RtcManager] Audio formats negotiated.");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo("[RtcManager] Audio formats negotiated.");
+                }
             };
 
             _pc.OnRtpPacketReceived += (remoteEP, type, packet) =>
@@ -283,14 +289,27 @@ namespace BingBox.WebRTC
 
             _pc.onconnectionstatechange += (state) =>
             {
-                Plugin.Log.LogInfo($"[RtcManager] Connection State: {state}");
+                if (state.ToString().ToLower() == "connected")
+                {
+                    Plugin.Log.LogInfo("[RtcManager] Connected!");
+                }
+                else
+                {
+                    if (Plugin.DebugConfig.Value)
+                    {
+                        Plugin.Log.LogInfo($"[RtcManager] Connection State: {state}");
+                    }
+                }
             };
 
             string? sdpStr = ExtractSdpFromOffer(json);
 
             if (!string.IsNullOrEmpty(sdpStr))
             {
-                Plugin.Log.LogInfo("[RtcManager] Manually parsed SDP successfully.");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo("[RtcManager] Manually parsed SDP successfully.");
+                }
                 var remoteDesc = new RTCSessionDescriptionInit
                 {
                     type = RTCSdpType.offer,
@@ -315,7 +334,10 @@ namespace BingBox.WebRTC
 
                 var answerJson = $"{{\"type\": \"ANSWER\", \"sdp\": {{\"type\": \"answer\", \"sdp\": \"{answer.sdp.Replace("\r\n", "\\r\\n")}\"}} }}";
                 _client.SendJson(answerJson);
-                Plugin.Log.LogInfo("[RtcManager] Sent ANSWER.");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo("[RtcManager] Sent ANSWER.");
+                }
             }
             else
             {

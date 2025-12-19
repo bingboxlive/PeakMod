@@ -37,7 +37,10 @@ public class EnableDebuggingSetting : BoolSetting, IExposedSetting
     public override void ApplyValue()
     {
         Plugin.DebugConfig.Value = Value;
-        Plugin.Log.LogInfo($"Debugging Enabled: {Value}");
+        if (Plugin.DebugConfig.Value)
+        {
+            Plugin.Log.LogInfo($"Debugging Enabled: {Value}");
+        }
     }
 
     public string GetCategory() => BingBoxSettings.CategoryId.ToString();

@@ -74,28 +74,8 @@ namespace BingBox.UI
             }
         }
 
-        private bool _wasVisible = false;
-
-        private float _lastDebugTime = 0f;
-
         private void Update()
         {
-            if (Time.unscaledTime - _lastDebugTime > 3.0f)
-            {
-                DebugVisibility();
-                _lastDebugTime = Time.unscaledTime;
-            }
-
-            bool isVisible = IsVisible();
-            if (isVisible != _wasVisible)
-            {
-                if (isVisible) Plugin.Log.LogInfo("PAUSE MENU APPEARED");
-                else Plugin.Log.LogInfo("PAUSE MENU DISAPPEARED");
-                _wasVisible = isVisible;
-            }
-
-            if (!isVisible) return;
-
             if (_trackDataChanged)
             {
                 UpdateTrackUI();
@@ -113,34 +93,6 @@ namespace BingBox.UI
             float totalSec = _currentTrackDuration;
 
             UpdateProgressDisplay(elapsedSec, totalSec);
-        }
-
-        private void DebugVisibility()
-        {
-            var t = transform;
-            Plugin.Log.LogInfo($"--- VISIBILITY REPORT ({gameObject.name}) ---");
-            while (t != null)
-            {
-                string info = $"{t.name}: Active={t.gameObject.activeSelf}, Scale={t.localScale}";
-                var cg = t.GetComponent<CanvasGroup>();
-                if (cg != null) info += $", CG.Alpha={cg.alpha}";
-                var c = t.GetComponent<Canvas>();
-                if (c != null) info += $", Canvas.Enabled={c.enabled}";
-
-                Plugin.Log.LogInfo(info);
-                t = t.parent;
-            }
-            Plugin.Log.LogInfo("-------------------------------------------");
-        }
-
-        private bool IsVisible()
-        {
-            if (!gameObject.activeInHierarchy) return false;
-
-            var group = GetComponentInParent<CanvasGroup>();
-            if (group != null && group.alpha == 0) return false;
-
-            return true;
         }
 
         private void OnDestroy()
@@ -174,7 +126,10 @@ namespace BingBox.UI
                 info = _pendingTrackInfo;
             }
 
-            Plugin.Log.LogInfo($"[UIController] UpdateUI: Title='{info.Title}' Clean='{info.CleanTitle}' Artist='{info.Artist}' DisplayArtist='{info.DisplayArtist}' Thumb='{info.Thumbnail}' Paused={info.IsPaused}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[UIController] UpdateUI: Title='{info.Title}' Clean='{info.CleanTitle}' Artist='{info.Artist}' DisplayArtist='{info.DisplayArtist}' Thumb='{info.Thumbnail}' Paused={info.IsPaused}");
+            }
 
             _isPaused = info.IsPaused;
             if (PlayPauseImage != null)
@@ -319,7 +274,10 @@ namespace BingBox.UI
             if (_lastThumbnailUrl == url) return;
             _lastThumbnailUrl = url;
 
-            Plugin.Log.LogInfo($"[UIController] Updating Album Art. URL: '{url}'");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[UIController] Updating Album Art. URL: '{url}'");
+            }
 
             if (_downloadCoroutine != null)
             {
@@ -339,7 +297,10 @@ namespace BingBox.UI
 
         private void ResetAlbumArt()
         {
-            Plugin.Log.LogInfo("[UIController] Resetting Album Art to default.");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo("[UIController] Resetting Album Art to default.");
+            }
             var sprite = UIUtils.LoadSprite("Images.bing-bong.png");
             if (AlbumArtImage != null && sprite != null)
             {
@@ -354,7 +315,10 @@ namespace BingBox.UI
 
         private System.Collections.IEnumerator DownloadImage(string url)
         {
-            Plugin.Log.LogInfo($"[UIController] Starting download coroutine for: {url}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[UIController] Starting download coroutine for: {url}");
+            }
             using (var uwr = new UnityEngine.Networking.UnityWebRequest(url, UnityEngine.Networking.UnityWebRequest.kHttpVerbGET))
             {
                 uwr.downloadHandler = new UnityEngine.Networking.DownloadHandlerBuffer();
@@ -380,7 +344,10 @@ namespace BingBox.UI
                         var texture = new Texture2D(2, 2);
                         if (ImageConversion.LoadImage(texture, data))
                         {
-                            Plugin.Log.LogInfo($"[UIController] Download success. Texture size: {texture.width}x{texture.height}");
+                            if (Plugin.DebugConfig.Value)
+                            {
+                                Plugin.Log.LogInfo($"[UIController] Download success. Texture size: {texture.width}x{texture.height}");
+                            }
 
                             int side = Mathf.Min(texture.width, texture.height);
                             int xOffset = (texture.width - side) / 2;
@@ -407,7 +374,10 @@ namespace BingBox.UI
         }
         private void OnRequestSubmit(string url)
         {
-            Plugin.Log.LogInfo($"[UIController] OnRequestSubmit called with: '{url}'");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[UIController] OnRequestSubmit called with: '{url}'");
+            }
             if (string.IsNullOrEmpty(url)) return;
             if (RequestInput != null) RequestInput.text = "";
 
@@ -416,7 +386,10 @@ namespace BingBox.UI
 
         private System.Collections.IEnumerator SendTrackRequest(string url)
         {
-            Plugin.Log.LogInfo($"[UIController] Starting SendTrackRequest for: {url}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[UIController] Starting SendTrackRequest for: {url}");
+            }
             var host = Plugin.LiveUrl;
             if (host.StartsWith("wss://")) host = host.Replace("wss://", "https://");
             else if (host.StartsWith("ws://")) host = host.Replace("ws://", "http://");
@@ -424,14 +397,20 @@ namespace BingBox.UI
             if (!host.StartsWith("http")) host = "https://" + host;
 
             var apiUrl = $"{host}/api/queue";
-            Plugin.Log.LogInfo($"[UIController] API URL: {apiUrl}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[UIController] API URL: {apiUrl}");
+            }
 
             var roomId = RoomIdManager.CurrentRoomId;
             var userId = Plugin.UserId;
             var userName = Plugin.Username;
 
             var json = $"{{\"url\": \"{JsonEscape(url)}\", \"roomId\": \"{roomId}\", \"userId\": \"{userId}\", \"userName\": \"{JsonEscape(userName)}\"}}";
-            Plugin.Log.LogInfo($"[UIController] JSON Payload: {json}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[UIController] JSON Payload: {json}");
+            }
 
             using (var uwr = new UnityEngine.Networking.UnityWebRequest(apiUrl, "POST"))
             {
@@ -444,11 +423,17 @@ namespace BingBox.UI
 
                 if (uwr.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
                 {
-                    Plugin.Log.LogError($"[UIController] Failed to add track: {uwr.error} - Code: {uwr.responseCode} - Text: {uwr.downloadHandler.text}");
+                    if (Plugin.DebugConfig.Value)
+                    {
+                        Plugin.Log.LogError($"[UIController] Failed to add track: {uwr.error} - Code: {uwr.responseCode} - Text: {uwr.downloadHandler.text}");
+                    }
                 }
                 else
                 {
-                    Plugin.Log.LogInfo($"[UIController] Track added successfully. Response: {uwr.downloadHandler.text}");
+                    if (Plugin.DebugConfig.Value)
+                    {
+                        Plugin.Log.LogInfo($"[UIController] Track added successfully. Response: {uwr.downloadHandler.text}");
+                    }
                 }
             }
         }

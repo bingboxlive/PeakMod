@@ -56,7 +56,10 @@ namespace BingBox.WebRTC
 
             if (url.EndsWith("/")) url = url.Substring(0, url.Length - 1);
 
-            Plugin.Log.LogInfo($"[WebClient] Connecting to {url}...");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[WebClient] Connecting to {url}...");
+            }
 
             try
             {
@@ -132,7 +135,7 @@ namespace BingBox.WebRTC
             }
         }
 
-        private byte[] _receiveBuffer = new byte[32 * 1024]; // Start with 32KB
+        private byte[] _receiveBuffer = new byte[32 * 1024];
         private int _receiveCount = 0;
 
         private async void ReceiveLoop()

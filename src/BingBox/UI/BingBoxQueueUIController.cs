@@ -18,7 +18,7 @@ namespace BingBox.UI
         private List<BingBoxTrackInfo> _pendingQueue = new List<BingBoxTrackInfo>();
         private bool _dataChanged = false;
         private float _lastUpdateTime = 0f;
-        private const float UpdateInterval = 0.2f; // Throttle to 5fps max for queue rebuilds
+        private const float UpdateInterval = 0.2f;
 
         private void Start()
         {
@@ -46,7 +46,6 @@ namespace BingBox.UI
 
         private void HandleRoomChange(string newRoomId)
         {
-            // Clear queue immediately on room switch
             lock (_pendingQueue)
             {
                 _pendingQueue.Clear();

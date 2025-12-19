@@ -204,7 +204,10 @@ public static class FooterUI
             return;
         }
 
-        Plugin.Log.LogInfo($"[FooterUI] Found donor: {donor.name}. Cloning...");
+        if (Plugin.DebugConfig.Value)
+        {
+            Plugin.Log.LogInfo($"[FooterUI] Found donor: {donor.name}. Cloning...");
+        }
         var clone = Object.Instantiate(donor.gameObject);
         clone.name = sliderName;
         clone.transform.SetParent(parent, false);
@@ -241,7 +244,10 @@ public static class FooterUI
         rt.anchoredPosition = new Vector2(2f, -930f);
         rt.sizeDelta = new Vector2(402f, 30f);
 
-        Plugin.Log.LogInfo($"[FooterUI] Slider placed at {rt.anchoredPosition} with size {rt.sizeDelta} | Active: {clone.activeSelf} | ActiveInHierarchy: {clone.activeInHierarchy}");
+        if (Plugin.DebugConfig.Value)
+        {
+            Plugin.Log.LogInfo($"[FooterUI] Slider placed at {rt.anchoredPosition} with size {rt.sizeDelta} | Active: {clone.activeSelf} | ActiveInHierarchy: {clone.activeInHierarchy}");
+        }
 
         foreach (var c in clone.GetComponentsInChildren<MonoBehaviour>())
         {

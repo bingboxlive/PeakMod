@@ -175,7 +175,10 @@ public class CustomTextSettingBehaviour : MonoBehaviour
             {
                 Plugin.Username = newVal;
             }
-            Plugin.Log.LogInfo($"[CustomString] Username updated: {newVal}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[CustomString] {TargetSettingName} updated: {newVal}");
+            }
         }
         else if (TargetSettingName == "BingBox Live URL")
         {
@@ -188,7 +191,10 @@ public class CustomTextSettingBehaviour : MonoBehaviour
             {
                 Plugin.LiveUrl = newVal;
             }
-            Plugin.Log.LogInfo($"[CustomString] LiveUrl updated: {newVal}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[CustomString] LiveUrl updated: {newVal}");
+            }
         }
     }
 }

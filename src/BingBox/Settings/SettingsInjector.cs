@@ -44,7 +44,10 @@ public class SettingsInjector : MonoBehaviour
 
     private IEnumerator UpdateTabs(Scene scene)
     {
-        _log?.LogInfo($"[SettingsInjector] Started searching for tabs in scene: {scene.name}");
+        if (Plugin.DebugConfig.Value)
+        {
+            _log?.LogInfo($"[SettingsInjector] Started searching for tabs in scene: {scene.name}");
+        }
         int loopCount = 0;
 
         while (_buttonSource == null)
@@ -52,7 +55,10 @@ public class SettingsInjector : MonoBehaviour
             loopCount++;
             if (loopCount % 50 == 0)
             {
-                _log?.LogWarning($"[SettingsInjector] Still searching for Settings Tabs in '{scene.name}'... (It's been {loopCount * 0.1f:F1}s)");
+                if (Plugin.DebugConfig.Value)
+                {
+                    _log?.LogWarning($"[SettingsInjector] Still searching for Settings Tabs in '{scene.name}'... (It's been {loopCount * 0.1f:F1}s)");
+                }
             }
 
             var buttons = FindTabsButtons(scene);
@@ -65,7 +71,10 @@ public class SettingsInjector : MonoBehaviour
 
         if (_buttonSource != null)
         {
-            _log?.LogInfo("Found Settings Tab Source. Injecting BingBox tab...");
+            if (Plugin.DebugConfig.Value)
+            {
+                _log?.LogInfo("Found Settings Tab Source. Injecting BingBox tab...");
+            }
 
             GameObject newButton = Instantiate(_buttonSource, _buttonSource.transform.parent);
             newButton.name = "BingBox";

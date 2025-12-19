@@ -45,7 +45,10 @@ public class DopplerSetting : EnumSetting<DopplerOption>, IExposedSetting
     {
         Plugin.DopplerConfig.Value = (Value == DopplerOption.Yes);
         BingBox.Audio.BingBoxAudioManager.Instance?.SetDoppler(Value == DopplerOption.Yes);
-        Plugin.Log.LogInfo($"Doppler Setting Changed: {Value}");
+        if (Plugin.DebugConfig.Value)
+        {
+            Plugin.Log.LogInfo($"Doppler Setting Changed: {Value}");
+        }
     }
 
     public string GetCategory() => BingBoxSettings.CategoryId.ToString();

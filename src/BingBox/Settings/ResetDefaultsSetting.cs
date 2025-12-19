@@ -17,7 +17,10 @@ public class ResetDefaultsSetting : EnumSetting<ResetOption>, IExposedSetting
 
     public override void ApplyValue()
     {
-        Plugin.Log.LogInfo($"Reset Defaults Triggered? Value: {Value}");
+        if (Plugin.DebugConfig.Value)
+        {
+            Plugin.Log.LogInfo($"Reset Defaults Triggered? Value: {Value}");
+        }
     }
 
     public string GetCategory() => BingBoxSettings.CategoryId.ToString();
@@ -97,12 +100,18 @@ public class ResetButtonBehaviour : MonoBehaviour
         btn.transition = Selectable.Transition.None;
         btn.onClick.AddListener(OnButtonClick);
 
-        Plugin.Log.LogInfo("[Reset Defaults] Overlay Button Created & Ready.");
+        if (Plugin.DebugConfig.Value)
+        {
+            Plugin.Log.LogInfo("[Reset Defaults] Overlay Button Created & Ready.");
+        }
     }
 
     private void OnButtonClick()
     {
-        Plugin.Log.LogInfo("[Reset Defaults] Button Clicked (Overlay)!");
+        if (Plugin.DebugConfig.Value)
+        {
+            Plugin.Log.LogInfo("[Reset Defaults] Button Clicked (Overlay)!");
+        }
         PerformReset();
     }
 
@@ -110,18 +119,22 @@ public class ResetButtonBehaviour : MonoBehaviour
     {
         if (LiveUrlSetting.Instance != null)
         {
-            LiveUrlSetting.Instance.SetValue("https://bingbox.live");
+            LiveUrlSetting.Instance.SetValue("bingbox.live");
             LiveUrlSetting.Instance.ApplyValue();
         }
         else
         {
-            Plugin.LiveUrl = "https://bingbox.live";
+            Plugin.LiveUrl = "bingbox.live";
         }
 
         if (DopplerSetting.Instance != null) DopplerSetting.Instance.SetToDefault();
         if (EnableDebuggingSetting.Instance != null) EnableDebuggingSetting.Instance.SetToDefault();
 
-        Plugin.Log.LogInfo("Internal Data Restored.");
+        if (Plugin.DebugConfig.Value)
+        {
+            Plugin.Log.LogInfo("Internal Data Restored.");
+        }
+        Plugin.Log.LogInfo("Settings reset to defaults.");
 
         ForceRefreshScene();
     }
@@ -136,7 +149,10 @@ public class ResetButtonBehaviour : MonoBehaviour
             {
                 behaviour.RefreshUI();
                 urlRefreshed = true;
-                Plugin.Log.LogInfo("[Reset] Found and Refreshed Live URL UI via Behaviour!");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo("[Reset] Found and Refreshed Live URL UI via Behaviour!");
+                }
             }
         }
 
@@ -153,8 +169,11 @@ public class ResetButtonBehaviour : MonoBehaviour
 
                 if (input != null)
                 {
-                    input.text = "https://bingbox.live";
-                    Plugin.Log.LogInfo("[Reset] Found Live URL via Label Search!");
+                    input.text = "bingbox.live";
+                    if (Plugin.DebugConfig.Value)
+                    {
+                        Plugin.Log.LogInfo("[Reset] Found Live URL via Label Search!");
+                    }
                     urlRefreshed = true;
                 }
             }
@@ -162,12 +181,18 @@ public class ResetButtonBehaviour : MonoBehaviour
             if (label.text.Contains("Doppler Effect"))
             {
                 RefreshDropdownSibling(label.transform, 0);
-                Plugin.Log.LogInfo("[Reset] Found Doppler Label, attempting refresh...");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo("[Reset] Found Doppler Label, attempting refresh...");
+                }
             }
             else if (label.text.Contains("Enable Debugging"))
             {
                 RefreshDropdownSibling(label.transform, 0);
-                Plugin.Log.LogInfo("[Reset] Found Debug Label, attempting refresh...");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo("[Reset] Found Debug Label, attempting refresh...");
+                }
             }
         }
     }
@@ -186,7 +211,10 @@ public class ResetButtonBehaviour : MonoBehaviour
         {
             dropdown.value = targetValue;
             dropdown.RefreshShownValue();
-            Plugin.Log.LogInfo($"[Reset] Success! Reset Dropdown on {parent.name}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[Reset] Success! Reset Dropdown on {parent.name}");
+            }
         }
     }
 }

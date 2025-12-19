@@ -17,7 +17,10 @@ internal static class PerformanceLogger
             var ms = Time.deltaTime * 1000f;
             var mem = GC.GetTotalMemory(false) / 1024;
             var g0 = GC.CollectionCount(0);
-            Plugin.Log.LogWarning($"FPS DROP! ({ms:F1}ms) Mem: {mem}KB, G0: {g0}");
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogWarning($"FPS DROP! ({ms:F1}ms) Mem: {mem}KB, G0: {g0}");
+            }
         }
     }
 }

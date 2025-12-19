@@ -45,7 +45,10 @@ public class PauseMenuInjector : MonoBehaviour
                 var oldBox = targetParent.Find("BingBox_BrownBox");
                 if (oldBox != null) Destroy(oldBox.gameObject);
 
-                Plugin.Log.LogInfo("[PauseMenuInjector] Creating BingBox UI Group...");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo("[PauseMenuInjector] Creating BingBox UI Group...");
+                }
                 groupObj = new GameObject(groupName);
                 groupObj.transform.SetParent(targetParent, false);
 
@@ -65,7 +68,10 @@ public class PauseMenuInjector : MonoBehaviour
 
 
                 _hasInjectedUI = false;
-                Plugin.Log.LogInfo("[PauseMenuInjector] Resetting Injection Flag for new Menu.");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo("[PauseMenuInjector] Resetting Injection Flag for new Menu.");
+                }
             }
             else
             {
@@ -82,7 +88,6 @@ public class PauseMenuInjector : MonoBehaviour
                 if (!internalMainPage.gameObject.activeInHierarchy)
                 {
                     shouldShow = false;
-                    Plugin.Log.LogInfo($"[PauseMenuInjector] Hidden because internalMainPage is inactive.");
                 }
             }
             else
@@ -103,18 +108,23 @@ public class PauseMenuInjector : MonoBehaviour
             if (subPageActive)
             {
                 shouldShow = false;
-                Plugin.Log.LogInfo($"[PauseMenuInjector] Hidden because a sub-page is active.");
             }
 
             if (groupObj.activeSelf != shouldShow)
             {
-                Plugin.Log.LogInfo($"[PauseMenuInjector] Setting Group Active: {shouldShow}");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo($"[PauseMenuInjector] Setting Group Active: {shouldShow}");
+                }
                 groupObj.SetActive(shouldShow);
             }
 
             if (shouldShow && !_hasInjectedUI)
             {
-                Plugin.Log.LogInfo("[PauseMenuInjector] Logic says SHOW. Attempting Injection...");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogInfo("[PauseMenuInjector] Logic says SHOW. Attempting Injection...");
+                }
 
 
 
@@ -123,12 +133,18 @@ public class PauseMenuInjector : MonoBehaviour
 
                 if (donor == null)
                 {
-                    Plugin.Log.LogInfo("[PauseMenuInjector] 'Title' not found. Searching for fallback text...");
+                    if (Plugin.DebugConfig.Value)
+                    {
+                        Plugin.Log.LogInfo("[PauseMenuInjector] 'Title' not found. Searching for fallback text...");
+                    }
                     var allText = pauseMenu.GetComponentsInChildren<TextMeshProUGUI>(true);
                     if (allText.Length > 0)
                     {
                         donor = allText[0].transform;
-                        Plugin.Log.LogInfo($"[PauseMenuInjector] Found fallback text: {donor.name}");
+                        if (Plugin.DebugConfig.Value)
+                        {
+                            Plugin.Log.LogInfo($"[PauseMenuInjector] Found fallback text: {donor.name}");
+                        }
                     }
                 }
 
@@ -148,14 +164,20 @@ public class PauseMenuInjector : MonoBehaviour
                 }
                 else
                 {
-                    Plugin.Log.LogInfo("[PauseMenuInjector] Font Asset Found. Injecting Child Components...");
+                    if (Plugin.DebugConfig.Value)
+                    {
+                        Plugin.Log.LogInfo("[PauseMenuInjector] Font Asset Found. Injecting Child Components...");
+                    }
 
                     PlayerUI.Inject(pauseMenu, groupTransform, fontAsset);
                     QueueUI.Inject(groupTransform, fontAsset);
                     FooterUI.Inject(pauseMenu, groupTransform, fontAsset);
 
                     _hasInjectedUI = true;
-                    Plugin.Log.LogInfo("[PauseMenuInjector] UI Injected Successfully.");
+                    if (Plugin.DebugConfig.Value)
+                    {
+                        Plugin.Log.LogInfo("[PauseMenuInjector] UI Injected Successfully.");
+                    }
                 }
             }
         }
