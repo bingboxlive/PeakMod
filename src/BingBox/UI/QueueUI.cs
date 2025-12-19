@@ -51,7 +51,7 @@ public static class QueueUI
         rt.anchorMax = new Vector2(0, 1);
         rt.pivot = new Vector2(0, 1);
         rt.anchoredPosition = new Vector2(0f, -260f);
-        rt.sizeDelta = new Vector2(414f, 650f);
+        rt.sizeDelta = new Vector2(414f, 618f);
 
 
         var viewport = new GameObject("Viewport");

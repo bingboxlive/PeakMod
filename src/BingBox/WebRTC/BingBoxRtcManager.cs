@@ -34,9 +34,11 @@ namespace BingBox.WebRTC
 
         public event Action<Network.BingBoxTrackInfo>? OnTrackUpdate;
         public event Action<List<Network.BingBoxTrackInfo>>? OnQueueUpdate;
+        public event Action<string>? OnQueueModeUpdate;
 
         public Network.BingBoxTrackInfo CurrentTrackInfo { get; private set; } = new Network.BingBoxTrackInfo();
         public List<Network.BingBoxTrackInfo> CurrentQueue { get; private set; } = new List<Network.BingBoxTrackInfo>();
+        public string CurrentQueueMode { get; private set; } = "classic";
 
         public async Task HandleSignalingMessage(string json)
         {
@@ -65,6 +67,21 @@ namespace BingBox.WebRTC
         {
             try
             {
+                int modeKeyIdx = json.IndexOf("\"queueMode\":");
+                if (modeKeyIdx != -1)
+                {
+                    int startQuote = json.IndexOf('"', modeKeyIdx + 12);
+                    if (startQuote != -1)
+                    {
+                        int endQuote = json.IndexOf('"', startQuote + 1);
+                        if (endQuote != -1)
+                        {
+                            int len = endQuote - startQuote - 1;
+                            UpdateModeIfChanged(json, startQuote + 1, len);
+                        }
+                    }
+                }
+
                 string currentTrackJson = ExtractJsonObject(json, "currentTrack");
                 if (string.IsNullOrEmpty(currentTrackJson) || currentTrackJson == "null")
                 {
@@ -148,10 +165,31 @@ namespace BingBox.WebRTC
                     CurrentQueue = queueList;
                     OnQueueUpdate?.Invoke(queueList);
                 }
+
             }
             catch (Exception ex)
             {
                 Plugin.Log.LogError($"[RtcManager] Error handling UPDATE: {ex}");
+            }
+        }
+
+        private void UpdateModeIfChanged(string json, int start, int len)
+        {
+            if (len <= 0) return;
+
+            string matched = "";
+            if (len == 7 && string.Compare(json, start, "classic", 0, 7) == 0) matched = "classic";
+            else if (len == 10 && string.Compare(json, start, "roundrobin", 0, 10) == 0) matched = "roundrobin";
+            else if (len == 7 && string.Compare(json, start, "shuffle", 0, 7) == 0) matched = "shuffle";
+
+            if (!string.IsNullOrEmpty(matched))
+            {
+                if (CurrentQueueMode != matched)
+                {
+                    Plugin.Log.LogInfo($"[RtcManager] Queue Mode Changed: {CurrentQueueMode} -> {matched}");
+                    CurrentQueueMode = matched;
+                    OnQueueModeUpdate?.Invoke(matched);
+                }
             }
         }
 

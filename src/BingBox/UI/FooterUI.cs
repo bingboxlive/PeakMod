@@ -6,6 +6,7 @@ using BingBox.Utils;
 using Zorro.Core;
 using Zorro.Settings;
 using BingBox.Audio;
+using BingBox.WebRTC;
 
 namespace BingBox.UI;
 
@@ -13,6 +14,10 @@ public static class FooterUI
 {
     public static void Inject(GameObject root, RectTransform parent, object? fontAsset)
     {
+
+        InjectClassicButton(root, parent);
+        InjectRoundRobinButton(root, parent);
+        InjectShuffleButton(root, parent);
 
         InjectVolumeSlider(root, parent);
 
@@ -27,6 +32,105 @@ public static class FooterUI
         {
             InjectUsernameText(parent, fontAsset);
         }
+
+        var controller = parent.gameObject.GetComponent<BingBoxFooterUIController>();
+        if (controller == null)
+        {
+            controller = parent.gameObject.AddComponent<BingBoxFooterUIController>();
+        }
+        controller.Setup(
+            parent.Find("BingBox_ClassicButton_Wrapper")?.GetComponent<CanvasGroup>(),
+            parent.Find("BingBox_RoundRobinButton_Wrapper")?.GetComponent<CanvasGroup>(),
+            parent.Find("BingBox_ShuffleButton_Wrapper")?.GetComponent<CanvasGroup>()
+        );
+    }
+
+    private static void InjectClassicButton(GameObject root, RectTransform parent)
+    {
+        InjectButton(root, parent, "BingBox_ClassicButton", "Classic", new Vector2(42f, -961f));
+    }
+
+    private static void InjectRoundRobinButton(GameObject root, RectTransform parent)
+    {
+        InjectButton(root, parent, "BingBox_RoundRobinButton", "Round Robin", new Vector2(182f, -961f));
+    }
+
+    private static void InjectShuffleButton(GameObject root, RectTransform parent)
+    {
+        InjectButton(root, parent, "BingBox_ShuffleButton", "Shuffle", new Vector2(322f, -961f));
+    }
+
+    private static void InjectButton(GameObject root, RectTransform parent, string btnName, string text, Vector2 position)
+    {
+        var wrapperName = $"{btnName}_Wrapper";
+
+        if (parent.Find(wrapperName) != null) return;
+
+        var oldBtn = parent.Find(btnName);
+        if (oldBtn != null) Object.Destroy(oldBtn.gameObject);
+
+        var donorPath = "MainPage/MainPage/Options/UI_MainMenuButton_Resume";
+        var donor = root.transform.Find(donorPath);
+
+        if (donor == null)
+        {
+            Plugin.Log.LogError($"[FooterUI] Could not find Button Donor at {donorPath}");
+            return;
+        }
+
+        var wrapper = new GameObject(wrapperName, typeof(RectTransform));
+        wrapper.transform.SetParent(parent, false);
+
+        var cg = wrapper.AddComponent<CanvasGroup>();
+        cg.alpha = 0.6f;
+
+        var wrapperRt = wrapper.GetComponent<RectTransform>();
+        wrapperRt.anchorMin = new Vector2(0, 1);
+        wrapperRt.anchorMax = new Vector2(0, 1);
+        wrapperRt.pivot = new Vector2(0f, 0.5f);
+        wrapperRt.anchoredPosition = position;
+        wrapperRt.localScale = new Vector3(0.5f, 0.5f, 1f);
+
+        var clone = Object.Instantiate(donor.gameObject);
+        clone.name = btnName;
+        clone.transform.SetParent(wrapper.transform, false);
+
+        foreach (var c in clone.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (!c.GetType().FullName.StartsWith("UnityEngine.UI") && !c.GetType().FullName.StartsWith("TMPro"))
+            {
+                c.enabled = false;
+                Object.Destroy(c);
+            }
+        }
+
+        foreach (var comp in clone.GetComponents<LayoutGroup>()) Object.Destroy(comp);
+        foreach (var comp in clone.GetComponents<ContentSizeFitter>()) Object.Destroy(comp);
+        foreach (var comp in clone.GetComponents<LayoutElement>()) Object.Destroy(comp);
+
+        var rt = clone.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.localScale = Vector3.one;
+        rt.localRotation = Quaternion.identity;
+
+        var btn = clone.GetComponentInChildren<Button>();
+        if (btn != null)
+        {
+            btn.onClick.RemoveAllListeners();
+        }
+
+        var tmp = clone.GetComponentInChildren<TextMeshProUGUI>();
+        if (tmp != null)
+        {
+            tmp.text = text;
+            tmp.fontSize = 24f;
+            tmp.enableAutoSizing = false;
+        }
+
+        clone.SetActive(true);
     }
 
     private static void InjectRoomIDInput(RectTransform parent)
@@ -241,7 +345,7 @@ public static class FooterUI
         rt.anchorMax = new Vector2(0, 1);
         rt.pivot = new Vector2(0, 1);
 
-        rt.anchoredPosition = new Vector2(2f, -930f);
+        rt.anchoredPosition = new Vector2(2f, -896f);
         rt.sizeDelta = new Vector2(402f, 30f);
 
         if (Plugin.DebugConfig.Value)
@@ -278,6 +382,73 @@ public static class FooterUI
                 }
             });
             slider.interactable = true;
+        }
+    }
+
+    public class BingBoxFooterUIController : MonoBehaviour
+    {
+        private CanvasGroup? _classicCg;
+        private CanvasGroup? _roundRobinCg;
+        private CanvasGroup? _shuffleCg;
+
+        private Button? _classicBtn;
+        private Button? _roundRobinBtn;
+        private Button? _shuffleBtn;
+
+        private bool _isSubscribed = false;
+
+        public void Setup(CanvasGroup? classic, CanvasGroup? roundRobin, CanvasGroup? shuffle)
+        {
+            _classicCg = classic;
+            _roundRobinCg = roundRobin;
+            _shuffleCg = shuffle;
+
+            _classicBtn = _classicCg?.GetComponentInChildren<Button>();
+            _roundRobinBtn = _roundRobinCg?.GetComponentInChildren<Button>();
+            _shuffleBtn = _shuffleCg?.GetComponentInChildren<Button>();
+
+            if (!_isSubscribed)
+            {
+                if (_classicBtn != null) _classicBtn.onClick.AddListener(() => SendMode("classic"));
+                if (_roundRobinBtn != null) _roundRobinBtn.onClick.AddListener(() => SendMode("roundrobin"));
+                if (_shuffleBtn != null) _shuffleBtn.onClick.AddListener(() => SendMode("shuffle"));
+
+                if (BingBoxWebClient.Instance != null && BingBoxWebClient.Instance.RtcManager != null)
+                {
+                    BingBoxWebClient.Instance.RtcManager.OnQueueModeUpdate += OnModeUpdated;
+                    _isSubscribed = true;
+                }
+            }
+
+            if (BingBoxWebClient.Instance != null && BingBoxWebClient.Instance.RtcManager != null)
+            {
+                OnModeUpdated(BingBoxWebClient.Instance.RtcManager.CurrentQueueMode);
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_isSubscribed && BingBoxWebClient.Instance != null && BingBoxWebClient.Instance.RtcManager != null)
+            {
+                BingBoxWebClient.Instance.RtcManager.OnQueueModeUpdate -= OnModeUpdated;
+            }
+        }
+
+        private void SendMode(string mode)
+        {
+            if (BingBoxWebClient.Instance != null)
+            {
+                BingBoxWebClient.Instance.SendToggleQueueMode(mode);
+            }
+        }
+
+        private void OnModeUpdated(string mode)
+        {
+            if (Plugin.DebugConfig.Value) Plugin.Log.LogInfo($"[FooterUI] Updating button opacities for mode: {mode}");
+
+            if (_classicCg != null) _classicCg.alpha = (mode == "classic") ? 1f : 0.2f;
+            if (_roundRobinCg != null) _roundRobinCg.alpha = (mode == "roundrobin") ? 1f : 0.2f;
+            if (_shuffleCg != null) _shuffleCg.alpha = (mode == "shuffle") ? 1f : 0.2f;
         }
     }
 }

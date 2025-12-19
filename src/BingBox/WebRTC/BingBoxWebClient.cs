@@ -18,6 +18,10 @@ namespace BingBox.WebRTC
         private bool _isConnecting;
         private BingBoxRtcManager _rtcManager = null!;
 
+        private static readonly string MODE_CLASSIC_JSON = "{\"type\": \"TOGGLE_QUEUE_MODE\", \"mode\": \"classic\"}";
+        private static readonly string MODE_ROUNDROBIN_JSON = "{\"type\": \"TOGGLE_QUEUE_MODE\", \"mode\": \"roundrobin\"}";
+        private static readonly string MODE_SHUFFLE_JSON = "{\"type\": \"TOGGLE_QUEUE_MODE\", \"mode\": \"shuffle\"}";
+
         private void Awake()
         {
             Instance = this;
@@ -118,6 +122,15 @@ namespace BingBox.WebRTC
             SendJoinRoom();
             _rtcManager.Close();
             _rtcManager.JoinStream();
+        }
+
+        public void SendToggleQueueMode(string mode)
+        {
+            if (string.IsNullOrEmpty(mode)) return;
+
+            if (mode == "classic") SendJson(MODE_CLASSIC_JSON);
+            else if (mode == "roundrobin") SendJson(MODE_ROUNDROBIN_JSON);
+            else if (mode == "shuffle") SendJson(MODE_SHUFFLE_JSON);
         }
 
         public async void SendJson(string json)
