@@ -35,6 +35,9 @@ namespace BingBox.WebRTC
         public event Action<Network.BingBoxTrackInfo>? OnTrackUpdate;
         public event Action<List<Network.BingBoxTrackInfo>>? OnQueueUpdate;
 
+        public Network.BingBoxTrackInfo CurrentTrackInfo { get; private set; } = new Network.BingBoxTrackInfo();
+        public List<Network.BingBoxTrackInfo> CurrentQueue { get; private set; } = new List<Network.BingBoxTrackInfo>();
+
         public async Task HandleSignalingMessage(string json)
         {
             try
@@ -65,7 +68,8 @@ namespace BingBox.WebRTC
                 string currentTrackJson = ExtractJsonObject(json, "currentTrack");
                 if (string.IsNullOrEmpty(currentTrackJson) || currentTrackJson == "null")
                 {
-                    OnTrackUpdate?.Invoke(new Network.BingBoxTrackInfo());
+                    CurrentTrackInfo = new Network.BingBoxTrackInfo();
+                    OnTrackUpdate?.Invoke(CurrentTrackInfo);
                     return;
                 }
 
@@ -84,6 +88,7 @@ namespace BingBox.WebRTC
 
 
 
+                CurrentTrackInfo = info;
                 OnTrackUpdate?.Invoke(info);
 
                 string queueJson = ExtractJsonArray(json, "queue");
@@ -140,6 +145,7 @@ namespace BingBox.WebRTC
 
                         idx = (endObj == -1) ? startObj + 1 : endObj + 1;
                     }
+                    CurrentQueue = queueList;
                     OnQueueUpdate?.Invoke(queueList);
                 }
             }

@@ -66,6 +66,12 @@ namespace BingBox.UI
             if (BingBoxWebClient.Instance != null && BingBoxWebClient.Instance.RtcManager != null)
             {
                 BingBoxWebClient.Instance.RtcManager.OnTrackUpdate += OnTrackReceived;
+
+                var current = BingBoxWebClient.Instance.RtcManager.CurrentTrackInfo;
+                if (current != null && !string.IsNullOrEmpty(current.Title))
+                {
+                    OnTrackReceived(current);
+                }
             }
 
             if (LogoButton != null)

@@ -25,6 +25,12 @@ namespace BingBox.UI
             if (BingBoxWebClient.Instance != null && BingBoxWebClient.Instance.RtcManager != null)
             {
                 BingBoxWebClient.Instance.RtcManager.OnQueueUpdate += OnQueueReceived;
+
+                var current = BingBoxWebClient.Instance.RtcManager.CurrentQueue;
+                if (current != null && current.Count > 0)
+                {
+                    OnQueueReceived(current);
+                }
             }
             RoomIdManager.OnRoomIdChanged += HandleRoomChange;
         }
