@@ -53,7 +53,6 @@ public class BingBoxAudioManager : MonoBehaviour
 
     private void Start()
     {
-        // 10 seconds buffer length for the clip, but it streams via callback so length is virtual
         _clip = AudioClip.Create("BingLive", 48000 * 2, 1, 48000, true, OnAudioRead);
 
         if (_audioSource != null)
@@ -68,7 +67,6 @@ public class BingBoxAudioManager : MonoBehaviour
     {
         if (_audioSink == null)
         {
-            // Silence
             Array.Clear(data, 0, data.Length);
             return;
         }
@@ -78,7 +76,6 @@ public class BingBoxAudioManager : MonoBehaviour
 
     private void Update()
     {
-        // Resolve Sink ref on main thread
         if (_audioSink == null)
         {
             var rtcManager = GetComponent<BingBox.WebRTC.BingBoxRtcManager>();
@@ -114,11 +111,21 @@ public class BingBoxAudioManager : MonoBehaviour
 
     private Item? _currentTarget;
 
+    private float _userVolume = 1.0f;
+
+    public void SetVolume(float volume)
+    {
+        _userVolume = Mathf.Clamp01(volume);
+        if (_audioSource != null && _currentTarget != null)
+        {
+            _audioSource.volume = _userVolume;
+        }
+    }
+
     private void UpdateTarget()
     {
         if (_audioSource == null || _clip == null) return;
 
-        // Optimization: Lazy cleanup from the top of the stack
         while (_trackedItems.Count > 0 && _trackedItems[_trackedItems.Count - 1] == null)
         {
             _trackedItems.RemoveAt(_trackedItems.Count - 1);
@@ -133,7 +140,7 @@ public class BingBoxAudioManager : MonoBehaviour
                 _audioSource.transform.SetParent(this.transform, false);
             }
 
-            _audioSource.volume = 1.0f;
+            _audioSource.volume = _userVolume;
             if (!_audioSource.isPlaying)
             {
                 _audioSource.Play();
@@ -153,12 +160,8 @@ public class BingBoxAudioManager : MonoBehaviour
 
     private void LateUpdate()
     {
-        // Safety check: if current target is destroyed unexpectedly (bypassing Unregister), handle it.
-        // In Unity, a destroyed object compares equal to null.
         if (_currentTarget == null && _trackedItems.Count > 0)
         {
-            // If we have items but no target, something is stale. Prune all nulls and retry.
-            // This is O(N) but only happens on error/unexpected destroy.
             _trackedItems.RemoveAll(item => item == null);
             UpdateTarget();
             return;

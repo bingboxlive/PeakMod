@@ -90,7 +90,7 @@ internal static class UIUtils
         return go;
     }
 
-    public static RectTransform? GetOrCreateMediaButton(Transform parent, string name, string resourceName, Vector2 size, Vector2 pos)
+    public static RectTransform? GetOrCreateMediaButton(Transform parent, string name, string resourceName, Vector2 size, Vector2 pos, Color? color = null)
     {
         var existing = parent.Find(name);
         if (existing == null)
@@ -103,7 +103,7 @@ internal static class UIUtils
             if (sprite != null)
             {
                 img.sprite = sprite;
-                img.color = Color.white;
+                img.color = color ?? Color.white;
             }
             else
             {

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 namespace BingBox.UI;
 
@@ -15,7 +16,7 @@ public static class QueueUI
             var name = "BingBox_Text_UpNext";
             if (parent.Find(name) == null)
             {
-                UIUtils.CreateTmpText(name, "Up Next", parent, fontAsset, 16f, new Vector2(5f, -240f), new Color(1f, 1f, 1f, 0.5f));
+                UIUtils.CreateTmpText(name, "Up Next", parent, fontAsset, 16f, new Vector2(5f, -252f), new Color(1f, 1f, 1f, 0.5f));
             }
         }
 
@@ -169,7 +170,8 @@ public static class QueueUI
         sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
 
 
-        InjectDummyData(contentRt, fontAsset);
+        var controller = scrollObj.AddComponent<BingBoxQueueUIController>();
+        controller.Init(contentRt, fontAsset);
     }
 
     private static Sprite GetCircleSprite()
@@ -198,28 +200,12 @@ public static class QueueUI
         return _circleSprite;
     }
 
-    private static void InjectDummyData(RectTransform content, object? fontAsset)
-    {
-
-        var spacer = new GameObject("TopSpacer");
-        spacer.transform.SetParent(content, false);
-        var le = spacer.AddComponent<LayoutElement>();
-        le.minHeight = 12f;
-        le.preferredHeight = 12f;
-
-        for (int i = 0; i < 10; i++)
-        {
-            CreateQueueItem(content, fontAsset,
-                $"Song Title {i + 1}",
-                $"Artist Name {i + 1}",
-                $"User{i + 99}");
-        }
-    }
-
-    private static void CreateQueueItem(RectTransform parent, object? fontAsset, string title, string artist, string requester)
+    public static QueueItem CreateQueueItem(RectTransform parent, object? fontAsset)
     {
         var itemObj = new GameObject("QueueItem");
         itemObj.transform.SetParent(parent, false);
+
+        var itemComp = itemObj.AddComponent<QueueItem>();
 
         var img = itemObj.AddComponent<Image>();
         img.color = Color.clear;
@@ -266,16 +252,20 @@ public static class QueueUI
         bbRt.sizeDelta = new Vector2(68, 68);
         bbRt.anchoredPosition = Vector2.zero;
 
+        itemComp.AlbumArtImage = bbImg;
+
 
         if (fontAsset != null)
         {
 
-            UIUtils.CreateTmpText("Title", title, itemObj.transform, fontAsset, 20f, new Vector2(86f, 0f), Color.white);
-            UIUtils.CreateTmpText("Artist", artist, itemObj.transform, fontAsset, 16f, new Vector2(86f, -20f), new Color(0.8f, 0.8f, 0.8f, 1f));
-            UIUtils.CreateTmpText("Requester", $"Req: {requester}", itemObj.transform, fontAsset, 12f, new Vector2(86f, -38f), new Color(1f, 1f, 1f, 0.5f));
+            var title = UIUtils.CreateTmpText("Title", "", itemObj.transform, fontAsset, 20f, new Vector2(86f, 0f), Color.white);
+            itemComp.TitleText = title.GetComponent<TextMeshProUGUI>();
 
+            var artist = UIUtils.CreateTmpText("Artist", "", itemObj.transform, fontAsset, 16f, new Vector2(86f, -20f), new Color(0.8f, 0.8f, 0.8f, 1f));
+            itemComp.ArtistText = artist.GetComponent<TextMeshProUGUI>();
 
-            UIUtils.CreateTmpText("Timestamp", "3:45", itemObj.transform, fontAsset, 12f, new Vector2(86f, -56f), new Color(1f, 1f, 1f, 0.3f));
+            var req = UIUtils.CreateTmpText("Requester", "", itemObj.transform, fontAsset, 12f, new Vector2(86f, -38f), new Color(1f, 1f, 1f, 0.5f));
+            itemComp.RequesterText = req.GetComponent<TextMeshProUGUI>();
 
 
             var xObj = UIUtils.CreateTmpText("RemoveButton", "X", itemObj.transform, fontAsset, 24f, new Vector2(-20f, 8f), Color.red);
@@ -285,6 +275,11 @@ public static class QueueUI
             xRt.pivot = new Vector2(1, 0.5f);
             xRt.sizeDelta = new Vector2(40, 40);
             xRt.anchoredPosition = new Vector2(-20f, 8f);
+
+            var btn = xObj.AddComponent<Button>();
+            itemComp.RemoveButton = btn;
         }
+
+        return itemComp;
     }
 }

@@ -11,6 +11,8 @@ namespace BingBox.WebRTC
     {
         public static BingBoxWebClient? Instance { get; private set; }
 
+        public BingBoxRtcManager RtcManager => _rtcManager;
+
         private ClientWebSocket? _ws;
         private CancellationTokenSource? _cts;
         private bool _isConnecting;

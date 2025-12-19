@@ -16,19 +16,15 @@ namespace BingBox.WebRTC
 
         public BingBoxAudioSink()
         {
-            // 65536 samples ~ 1.3 seconds at 48kHz
             int size = 65536;
             _buffer = new short[size];
             _mask = size - 1;
-
-            // Initialize Opus Decoder (48kHz, mono)
             _opusDecoder = new Concentus.Structs.OpusDecoder(48000, 1);
-            _decodeBuffer = new short[5760]; // Max Opus frame size (120ms @ 48kHz)
+            _decodeBuffer = new short[5760];
         }
 
-        // Concentus Opus Decoder
         private readonly Concentus.Structs.OpusDecoder _opusDecoder;
-        private readonly short[] _decodeBuffer; // Intermediate buffer for decoded PCM
+        private readonly short[] _decodeBuffer;
 
         public void AddSamples(short[] samples)
         {
@@ -45,9 +41,9 @@ namespace BingBox.WebRTC
         }
 
         private bool _isBuffering = true;
-        private const int MIN_BUFFER_COUNT = 7200; // 150ms pre-buffer (increased from 100ms)
-        private const int MAX_LATENCY_COUNT = 24000; // 500ms max latency
-        private const int TARGET_LATENCY_COUNT = 12000; // 250ms target after catch-up
+        private const int MIN_BUFFER_COUNT = 7200;
+        private const int MAX_LATENCY_COUNT = 24000;
+        private const int TARGET_LATENCY_COUNT = 12000;
 
         public void Read(float[] data, int channels)
         {
@@ -56,7 +52,6 @@ namespace BingBox.WebRTC
 
             int available = currentWrite - currentRead;
 
-            // Jitter Buffer Logic
             if (_isBuffering)
             {
                 if (available < MIN_BUFFER_COUNT)
@@ -66,7 +61,7 @@ namespace BingBox.WebRTC
                 }
                 _isBuffering = false;
             }
-            else if (available <= 0) // Underrun
+            else if (available <= 0)
             {
                 _isBuffering = true;
                 Array.Clear(data, 0, data.Length);
@@ -84,17 +79,14 @@ namespace BingBox.WebRTC
                 }
                 else
                 {
-                    // Partial underrun during read - fill rest with silence and buffer next time
                     data[i] = 0.0f;
                     _isBuffering = true;
                 }
             }
 
-            // Latency Catch-up (Skip forward if too far behind)
             int remaining = currentWrite - currentRead;
             if (remaining > MAX_LATENCY_COUNT)
             {
-                // Jump to target latency
                 currentRead = currentWrite - TARGET_LATENCY_COUNT;
             }
 
@@ -111,14 +103,12 @@ namespace BingBox.WebRTC
              {
                  new AudioFormat(AudioCodecsEnum.PCMU, 1),
                  new AudioFormat(AudioCodecsEnum.PCMA, 2),
-                 // new AudioFormat(AudioCodecsEnum.OPUS, 3) 
-                 // Commenting out Opus to ensure compilation if enum missing. PCMU/PCMA are standard.
+                 new AudioFormat(AudioCodecsEnum.OPUS, 3)
              };
         }
 
         public void SetAudioSinkFormat(AudioFormat audioFormat)
         {
-            // We accept whatever, but we hope for decoded PCM
         }
 
         public Task StartAudioSink()
@@ -147,13 +137,11 @@ namespace BingBox.WebRTC
 
             try
             {
-                // Decode Opus to PCM
                 lock (_opusDecoder)
                 {
                     int decodedSamples = _opusDecoder.Decode(payload, 0, payload.Length, _decodeBuffer, 0, _decodeBuffer.Length, false);
                     if (decodedSamples > 0)
                     {
-                        // Copy to Ring Buffer
                         int currentWrite = Volatile.Read(ref _writePos);
                         for (int i = 0; i < decodedSamples; i++)
                         {
@@ -166,14 +154,10 @@ namespace BingBox.WebRTC
             }
             catch (Exception)
             {
-                // Ignore decoding errors
             }
         }
 
         public void RestrictFormats(Func<AudioFormat, bool> restrictionFunc) { }
-
-        // Keeping this just in case it is part of the interface but the type was wrong
-        // Replacing AudioSamplingRatesEnum with int for now to avoid error if enum missing
         public void GotAudioSample(byte[] sample, uint timestamp, uint ssrc, int samplingRate)
         {
             int sampleCount = sample.Length / 2;

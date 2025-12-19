@@ -5,6 +5,7 @@ using BingBox.Settings;
 using BingBox.Utils;
 using Zorro.Core;
 using Zorro.Settings;
+using BingBox.Audio;
 
 namespace BingBox.UI;
 
@@ -259,8 +260,10 @@ public static class FooterUI
 
             slider.onValueChanged.AddListener((val) =>
             {
-
-                Plugin.Log.LogWarning("Volume control is currently disabled/missing implementation.");
+                if (BingBoxAudioManager.Instance != null)
+                {
+                    BingBoxAudioManager.Instance.SetVolume(val);
+                }
             });
             slider.interactable = true;
         }
