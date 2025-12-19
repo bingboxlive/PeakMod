@@ -10,9 +10,16 @@ public class PauseMenuInjector : MonoBehaviour
 
     private void Update()
     {
-        if (Time.time - _lastInjectTime > INJECT_INTERVAL)
+        if (_cachedPauseMenu == null)
         {
-            _lastInjectTime = Time.time;
+            if (Time.time - _lastInjectTime > INJECT_INTERVAL)
+            {
+                _lastInjectTime = Time.time;
+                InjectPauseMenuUI();
+            }
+        }
+        else
+        {
             InjectPauseMenuUI();
         }
     }

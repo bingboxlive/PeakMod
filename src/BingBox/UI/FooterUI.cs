@@ -260,13 +260,11 @@ public static class FooterUI
         var slider = clone.GetComponentInChildren<Slider>();
         if (slider != null)
         {
-            var label = clone.GetComponentInChildren<TextMeshProUGUI>();
-            if (label != null)
+            var texts = clone.GetComponentsInChildren<TextMeshProUGUI>(true);
+            foreach (var t in texts)
             {
-
-                label.gameObject.SetActive(false);
+                Object.Destroy(t.gameObject);
             }
-
 
             slider.minValue = 0f;
             slider.maxValue = 1f;
