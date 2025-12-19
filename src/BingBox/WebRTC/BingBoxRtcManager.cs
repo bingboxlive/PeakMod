@@ -7,6 +7,8 @@ using SIPSorcery.Media;
 using SIPSorceryMedia.Abstractions;
 using BingBox.Utils;
 using UnityEngine;
+using Newtonsoft.Json;
+using BingBox.Network;
 
 namespace BingBox.WebRTC
 {
@@ -29,32 +31,60 @@ namespace BingBox.WebRTC
                 Plugin.Log.LogError("[RtcManager] WebClient not assigned.");
                 return;
             }
+            // Use an anonymous object for simpler sending if desired, or just raw string
             _client.SendJson("{\"type\": \"JOIN_STREAM\"}");
         }
 
-        public event Action<Network.BingBoxTrackInfo>? OnTrackUpdate;
-        public event Action<List<Network.BingBoxTrackInfo>>? OnQueueUpdate;
+        public event Action<BingBoxTrackInfo>? OnTrackUpdate;
+        public event Action<List<BingBoxTrackInfo>>? OnQueueUpdate;
         public event Action<string>? OnQueueModeUpdate;
 
-        public Network.BingBoxTrackInfo CurrentTrackInfo { get; private set; } = new Network.BingBoxTrackInfo();
-        public List<Network.BingBoxTrackInfo> CurrentQueue { get; private set; } = new List<Network.BingBoxTrackInfo>();
+        public BingBoxTrackInfo CurrentTrackInfo { get; private set; } = new BingBoxTrackInfo();
+        public List<BingBoxTrackInfo> CurrentQueue { get; private set; } = new List<BingBoxTrackInfo>();
         public string CurrentQueueMode { get; private set; } = "classic";
 
         public async Task HandleSignalingMessage(string json)
         {
             try
             {
-                if (json.Contains("\"type\":\"OFFER\"") || json.Contains("\"type\": \"OFFER\""))
+                // First pass: Deserialize as a generic wrapper to check type.
+                // We use partial deserialization logic or just check the type field first.
+                // For efficiency/simplicity with Newtonsoft, we can deserialize to a common wrapper
+                // that has optional fields, or dynamic.
+                // Given our Models, SignalingMessage covers internal signaling.
+                // SignalUpdateMessage covers 'update'.
+                // Since they are distinct structures, we can do a quick check on "type" or try/catch.
+
+                // Fast path: check type string roughly, or just deserialize to a JObject if we wanted.
+                // But efficient path: Deserialize to a structural subset.
+
+                // Let's assume standard structure: { type: "..." }
+                // We can use a lightweight struct or JObject or dynamic.
+
+                // Simplest: Check type via Newtonsoft JObject (robust)
+                // var jobj = Newtonsoft.Json.Linq.JObject.Parse(json);
+                // var type = jobj["type"]?.ToString();
+
+                // Or use our SignalingMessage which has "Type"
+                var msg = JsonConvert.DeserializeObject<SignalingMessage>(json);
+                if (msg == null) return;
+
+                if (string.Equals(msg.Type, "OFFER", StringComparison.OrdinalIgnoreCase))
                 {
-                    await HandleOffer(json);
+                    await HandleOffer(msg);
                 }
-                else if (json.Contains("\"type\":\"ICE_CANDIDATE\"") || json.Contains("\"type\": \"ICE_CANDIDATE\""))
+                else if (string.Equals(msg.Type, "ICE_CANDIDATE", StringComparison.OrdinalIgnoreCase))
                 {
-                    HandleIceCandidate(json);
+                    HandleIceCandidate(msg);
                 }
-                else if (json.Contains("\"type\":\"UPDATE\"") || json.Contains("\"type\": \"UPDATE\""))
+                else if (string.Equals(msg.Type, "UPDATE", StringComparison.OrdinalIgnoreCase))
                 {
-                    HandleUpdate(json);
+                    // SignalingMessage might not have the update fields, so re-deserialize as update
+                    var updateMsg = JsonConvert.DeserializeObject<SignalUpdateMessage>(json);
+                    if (updateMsg != null)
+                    {
+                        HandleUpdate(updateMsg);
+                    }
                 }
             }
             catch (Exception ex)
@@ -66,236 +96,53 @@ namespace BingBox.WebRTC
             }
         }
 
-        private void HandleUpdate(string json)
+        private void HandleUpdate(SignalUpdateMessage msg)
         {
             try
             {
-                int modeKeyIdx = json.IndexOf("\"queueMode\":");
-                if (modeKeyIdx != -1)
+                // check mode
+                if (!string.IsNullOrEmpty(msg.QueueMode))
                 {
-                    int startQuote = json.IndexOf('"', modeKeyIdx + 12);
-                    if (startQuote != -1)
+                    if (CurrentQueueMode != msg.QueueMode)
                     {
-                        int endQuote = json.IndexOf('"', startQuote + 1);
-                        if (endQuote != -1)
-                        {
-                            int len = endQuote - startQuote - 1;
-                            UpdateModeIfChanged(json, startQuote + 1, len);
-                        }
+                        Plugin.Log.LogInfo($"[RtcManager] Queue Mode Changed: {CurrentQueueMode} -> {msg.QueueMode}");
+                        CurrentQueueMode = msg.QueueMode;
+                        OnQueueModeUpdate?.Invoke(CurrentQueueMode);
                     }
                 }
 
-                string currentTrackJson = ExtractJsonObject(json, "currentTrack");
-                if (string.IsNullOrEmpty(currentTrackJson) || currentTrackJson == "null")
+                if (msg.CurrentTrack != null)
                 {
-                    CurrentTrackInfo = new Network.BingBoxTrackInfo();
+                    CurrentTrackInfo = msg.CurrentTrack;
                     OnTrackUpdate?.Invoke(CurrentTrackInfo);
-                    return;
+                }
+                else
+                {
+                    // Null track implies nothing playing
+                    CurrentTrackInfo = new BingBoxTrackInfo();
+                    OnTrackUpdate?.Invoke(CurrentTrackInfo);
                 }
 
-                var info = new Network.BingBoxTrackInfo
+                if (msg.Queue != null)
                 {
-                    Title = Sanitize(ExtractJsonValue(currentTrackJson, "title")),
-                    CleanTitle = Sanitize(ExtractJsonValue(currentTrackJson, "cleanTitle")),
-                    Artist = Sanitize(ExtractJsonValue(currentTrackJson, "artist")),
-                    Thumbnail = Sanitize(ExtractJsonValue(currentTrackJson, "thumbnail")),
-                    AddedBy = Sanitize(ExtractJsonValue(currentTrackJson, "addedBy")),
-                    IsPaused = ExtractJsonValue(json, "isPaused", false).Trim() == "true",
-                    DurationSec = long.TryParse(ExtractJsonValue(currentTrackJson, "durationSec", false), out var dur) ? dur : 0,
-                    StartedAt = long.TryParse(ExtractJsonValue(json, "startedAt", false), out var start) ? start : 0,
-                    TotalPausedDuration = long.TryParse(ExtractJsonValue(json, "totalPausedDuration", false), out var pausedDur) ? pausedDur : 0
-                };
-
-
-
-                CurrentTrackInfo = info;
-                OnTrackUpdate?.Invoke(info);
-
-                string queueJson = ExtractJsonArray(json, "queue");
-                if (!string.IsNullOrEmpty(queueJson))
-                {
-                    var queueList = new List<Network.BingBoxTrackInfo>();
-                    int idx = 0;
-                    while (idx < queueJson.Length)
-                    {
-                        int startObj = queueJson.IndexOf('{', idx);
-                        if (startObj == -1) break;
-
-                        int endObj = -1;
-                        int depth = 0;
-                        for (int k = startObj; k < queueJson.Length; k++)
-                        {
-                            if (queueJson[k] == '{') depth++;
-                            else if (queueJson[k] == '}')
-                            {
-                                depth--;
-                                if (depth == 0)
-                                {
-                                    endObj = k;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (endObj != -1)
-                        {
-                            string itemJson = queueJson.Substring(startObj, endObj - startObj + 1);
-
-                            var qItem = new Network.BingBoxTrackInfo();
-                            qItem.Title = Sanitize(ExtractJsonValue(itemJson, "title"));
-                            qItem.CleanTitle = Sanitize(ExtractJsonValue(itemJson, "cleanTitle"));
-                            qItem.Artist = Sanitize(ExtractJsonValue(itemJson, "artist"));
-                            qItem.Thumbnail = Sanitize(ExtractJsonValue(itemJson, "thumbnail"));
-                            qItem.AddedBy = Sanitize(ExtractJsonValue(itemJson, "addedBy"));
-                            qItem.Id = Sanitize(ExtractJsonValue(itemJson, "id"));
-                            qItem.DurationSec = long.TryParse(ExtractJsonValue(itemJson, "durationSec", false), out var qDur) ? qDur : 0;
-                            qItem.AddedAt = long.TryParse(ExtractJsonValue(itemJson, "addedAt", false), out var aa) ? aa : 0;
-
-                            queueList.Add(qItem);
-
-                            bool match = false;
-                            if (!string.IsNullOrEmpty(info.CleanTitle) && qItem.CleanTitle == info.CleanTitle) match = true;
-                            else if (qItem.Title == info.Title) match = true;
-
-                            if (match && string.IsNullOrEmpty(info.AddedBy))
-                            {
-                                info.AddedBy = qItem.AddedBy;
-                            }
-                        }
-
-                        idx = (endObj == -1) ? startObj + 1 : endObj + 1;
-                    }
-                    CurrentQueue = queueList;
-                    OnQueueUpdate?.Invoke(queueList);
+                    CurrentQueue = msg.Queue;
+                    OnQueueUpdate?.Invoke(CurrentQueue);
                 }
-
             }
             catch (Exception ex)
             {
                 if (Plugin.DebugConfig.Value)
                 {
-                    Plugin.Log.LogError($"[RtcManager] Error handling UPDATE: {ex}");
+                    Plugin.Log.LogError($"[RtcManager] Error handling UPDATE model: {ex}");
                 }
             }
         }
 
-        private void UpdateModeIfChanged(string json, int start, int len)
-        {
-            if (len <= 0) return;
-
-            string matched = "";
-            if (len == 7 && string.Compare(json, start, "classic", 0, 7) == 0) matched = "classic";
-            else if (len == 10 && string.Compare(json, start, "roundrobin", 0, 10) == 0) matched = "roundrobin";
-            else if (len == 7 && string.Compare(json, start, "shuffle", 0, 7) == 0) matched = "shuffle";
-
-            if (!string.IsNullOrEmpty(matched))
-            {
-                if (CurrentQueueMode != matched)
-                {
-                    Plugin.Log.LogInfo($"[RtcManager] Queue Mode Changed: {CurrentQueueMode} -> {matched}");
-                    CurrentQueueMode = matched;
-                    OnQueueModeUpdate?.Invoke(matched);
-                }
-            }
-        }
-
-        private string Sanitize(string val)
-        {
-            if (string.IsNullOrEmpty(val) || val == "null" || val.Trim() == "null") return "";
-            return val;
-        }
-
-        private bool MatchTitles(string t1, string t2)
-        {
-            return string.Equals(t1, t2, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private string ExtractJsonObject(string json, string key)
-        {
-            string keyStr = $"\"{key}\"";
-            int idx = json.IndexOf(keyStr);
-            if (idx == -1) return "";
-
-            int colonIdx = -1;
-            for (int i = idx + keyStr.Length; i < json.Length; i++)
-            {
-                if (char.IsWhiteSpace(json[i])) continue;
-                if (json[i] == ':')
-                {
-                    colonIdx = i;
-                    break;
-                }
-                return "";
-            }
-            if (colonIdx == -1) return "";
-
-            int start = colonIdx + 1;
-            while (start < json.Length && char.IsWhiteSpace(json[start])) start++;
-
-            if (start >= json.Length || json[start] != '{') return "";
-
-            int depth = 0;
-            for (int i = start; i < json.Length; i++)
-            {
-                if (json[i] == '{') depth++;
-                else if (json[i] == '}')
-                {
-                    depth--;
-                    if (depth == 0)
-                    {
-                        return json.Substring(start, i - start + 1);
-                    }
-                }
-            }
-            return "";
-        }
-
-        private string ExtractJsonArray(string json, string key)
-        {
-            string keyStr = $"\"{key}\"";
-            int idx = json.IndexOf(keyStr);
-            if (idx == -1) return "";
-
-            int colonIdx = -1;
-            for (int i = idx + keyStr.Length; i < json.Length; i++)
-            {
-                if (char.IsWhiteSpace(json[i])) continue;
-                if (json[i] == ':')
-                {
-                    colonIdx = i;
-                    break;
-                }
-                return "";
-            }
-            if (colonIdx == -1) return "";
-
-            int start = colonIdx + 1;
-            while (start < json.Length && char.IsWhiteSpace(json[start])) start++;
-
-            if (start >= json.Length || json[start] != '[') return "";
-
-            int depth = 0;
-            for (int i = start; i < json.Length; i++)
-            {
-                if (json[i] == '[') depth++;
-                else if (json[i] == ']')
-                {
-                    depth--;
-                    if (depth == 0)
-                    {
-                        return json.Substring(start, i - start + 1);
-                    }
-                }
-            }
-            return "";
-        }
-
-        private async Task HandleOffer(string json)
+        private async Task HandleOffer(SignalingMessage msg)
         {
             if (Plugin.DebugConfig.Value)
             {
-                Plugin.Log.LogInfo($"[RtcManager] Received OFFER raw JSON: {json}");
-                Plugin.Log.LogInfo("[RtcManager] Creating PeerConnection...");
+                Plugin.Log.LogInfo("[RtcManager] Received OFFER via Newtonsoft.");
             }
 
             var config = new RTCConfiguration
@@ -332,7 +179,19 @@ namespace BingBox.WebRTC
             {
                 if (candidate != null)
                 {
-                    var candJson = $"{{\"type\": \"ICE_CANDIDATE\", \"candidate\": {{\"candidate\": \"{candidate.candidate}\", \"sdpMid\": \"{candidate.sdpMid}\", \"sdpMLineIndex\": {candidate.sdpMLineIndex}}}}}";
+                    // Construct ICE candidate JSON
+                    // We can use an anonymous object for serialization
+                    var candPayload = new
+                    {
+                        type = "ICE_CANDIDATE",
+                        candidate = new
+                        {
+                            candidate = candidate.candidate,
+                            sdpMid = candidate.sdpMid,
+                            sdpMLineIndex = candidate.sdpMLineIndex
+                        }
+                    };
+                    string candJson = JsonConvert.SerializeObject(candPayload);
                     _client.SendJson(candJson);
                 }
             };
@@ -352,18 +211,30 @@ namespace BingBox.WebRTC
                 }
             };
 
-            string? sdpStr = ExtractSdpFromOffer(json);
+            // msg.Sdp is the object inside "sdp" key. 
+            // In some signaling, "sdp" might be the string directly or an object. 
+            // Our model defines SdpDetail. Let's verify usage.
+            // If the incoming JSON is { type: "OFFER", sdp: "..." } vs { type: "OFFER", sdp: { type: "offer", sdp: "..." } }
+            // The existing code manually parsed 'sdp' key.
+            // Based on models, we expect nested object.
 
-            if (!string.IsNullOrEmpty(sdpStr))
+            string remoteSdpStr = "";
+            if (msg.Sdp != null)
+            {
+                remoteSdpStr = msg.Sdp.Sdp;
+            }
+
+            if (!string.IsNullOrEmpty(remoteSdpStr))
             {
                 if (Plugin.DebugConfig.Value)
                 {
-                    Plugin.Log.LogInfo("[RtcManager] Manually parsed SDP successfully.");
+                    Plugin.Log.LogInfo("[RtcManager] Parsed SDP successfully.");
                 }
+
                 var remoteDesc = new RTCSessionDescriptionInit
                 {
                     type = RTCSdpType.offer,
-                    sdp = sdpStr
+                    sdp = remoteSdpStr
                 };
 
                 var result = _pc.setRemoteDescription(remoteDesc);
@@ -382,8 +253,20 @@ namespace BingBox.WebRTC
                 var answer = _pc.createAnswer(null);
                 await _pc.setLocalDescription(answer);
 
-                var answerJson = $"{{\"type\": \"ANSWER\", \"sdp\": {{\"type\": \"answer\", \"sdp\": \"{answer.sdp.Replace("\r\n", "\\r\\n")}\"}} }}";
+                // Send Answer
+                var answerPayload = new
+                {
+                    type = "ANSWER",
+                    sdp = new
+                    {
+                        type = "answer",
+                        sdp = answer.sdp
+                    }
+                };
+
+                string answerJson = JsonConvert.SerializeObject(answerPayload);
                 _client.SendJson(answerJson);
+
                 if (Plugin.DebugConfig.Value)
                 {
                     Plugin.Log.LogInfo("[RtcManager] Sent ANSWER.");
@@ -391,25 +274,21 @@ namespace BingBox.WebRTC
             }
             else
             {
-                Plugin.Log.LogError($"[RtcManager] Failed to manual parse OFFER SDP. JSON length: {json.Length}");
+                Plugin.Log.LogError($"[RtcManager] Failed to parse OFFER SDP.");
             }
         }
 
-        private void HandleIceCandidate(string json)
+        private void HandleIceCandidate(SignalingMessage msg)
         {
             try
             {
-                string candidate = ExtractJsonValue(json, "candidate");
-                string sdpMid = ExtractJsonValue(json, "sdpMid");
-                string sdpMLineIndexStr = ExtractJsonValue(json, "sdpMLineIndex", false);
-
-                if (!string.IsNullOrEmpty(candidate))
+                if (msg.Candidate != null)
                 {
                     var init = new RTCIceCandidateInit
                     {
-                        candidate = candidate,
-                        sdpMid = sdpMid,
-                        sdpMLineIndex = ushort.TryParse(sdpMLineIndexStr, out var i) ? i : (ushort)0
+                        candidate = msg.Candidate.Candidate,
+                        sdpMid = msg.Candidate.SdpMid,
+                        sdpMLineIndex = (ushort)msg.Candidate.SdpMLineIndex
                     };
 
                     if (_pc != null && _pc.remoteDescription != null)
@@ -426,69 +305,6 @@ namespace BingBox.WebRTC
             {
                 Plugin.Log.LogError($"[RtcManager] Candidate parse error: {ex}");
             }
-        }
-
-        private string ExtractSdpFromOffer(string json)
-        {
-            const string sdpKey = "\"sdp\":";
-            int sdpKeyIndex = json.IndexOf(sdpKey);
-            if (sdpKeyIndex == -1) return string.Empty;
-
-            int firstIndex = json.IndexOf("\"sdp\":\"");
-            if (firstIndex == -1) return string.Empty;
-
-            int valueStart = firstIndex + 7;
-            if (valueStart >= json.Length) return string.Empty;
-
-            int endQuote = json.IndexOf('"', valueStart);
-            if (endQuote == -1) return string.Empty;
-
-            string sdpStr = json.Substring(valueStart, endQuote - valueStart);
-            return sdpStr.Replace("\\r\\n", "\r\n").Replace("\\\"", "\"").Replace("\\\\", "\\");
-        }
-
-        private string ExtractJsonValue(string json, string key, bool expectsString = true)
-        {
-            string keyStr = $"\"{key}\"";
-            int idx = json.IndexOf(keyStr);
-            if (idx == -1) return "";
-
-            int colonIdx = -1;
-            for (int i = idx + keyStr.Length; i < json.Length; i++)
-            {
-                if (char.IsWhiteSpace(json[i])) continue;
-                if (json[i] == ':')
-                {
-                    colonIdx = i;
-                    break;
-                }
-                else return "";
-            }
-            if (colonIdx == -1) return "";
-
-            int start = colonIdx + 1;
-            while (start < json.Length && char.IsWhiteSpace(json[start])) start++;
-
-            if (start >= json.Length) return "";
-
-            char endChar = ',';
-            if (expectsString && json[start] == '"')
-            {
-                start++;
-                endChar = '"';
-            }
-
-            int end = json.IndexOf(endChar, start);
-            if (end == -1)
-            {
-                end = json.IndexOf('}', start);
-            }
-
-            if (end != -1)
-            {
-                return json.Substring(start, end - start);
-            }
-            return "";
         }
 
         public void Close()
