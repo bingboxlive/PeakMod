@@ -19,7 +19,9 @@ namespace BingBox.WebRTC
             int size = 65536;
             _buffer = new short[size];
             _mask = size - 1;
+#pragma warning disable CS0618
             _opusDecoder = new Concentus.Structs.OpusDecoder(48000, 1);
+#pragma warning restore CS0618
             _decodeBuffer = new short[5760];
         }
 
@@ -139,7 +141,9 @@ namespace BingBox.WebRTC
             {
                 lock (_opusDecoder)
                 {
+#pragma warning disable CS0618
                     int decodedSamples = _opusDecoder.Decode(payload, 0, payload.Length, _decodeBuffer, 0, _decodeBuffer.Length, false);
+#pragma warning restore CS0618
                     if (decodedSamples > 0)
                     {
                         int currentWrite = Volatile.Read(ref _writePos);
