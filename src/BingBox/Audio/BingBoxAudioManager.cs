@@ -74,14 +74,27 @@ public class BingBoxAudioManager : MonoBehaviour
         _audioSink.Read(data, 1);
     }
 
+    private BingBox.WebRTC.BingBoxRtcManager? _rtcManager;
+    private float _connectionCheckTimer;
+
     private void Update()
     {
         if (_audioSink == null)
         {
-            var rtcManager = GetComponent<BingBox.WebRTC.BingBoxRtcManager>();
-            if (rtcManager != null)
+            if (_rtcManager == null)
             {
-                _audioSink = rtcManager.AudioSink;
+                // Throttle GetComponent check
+                _connectionCheckTimer -= Time.deltaTime;
+                if (_connectionCheckTimer <= 0)
+                {
+                    _connectionCheckTimer = 2.0f;
+                    _rtcManager = GetComponent<BingBox.WebRTC.BingBoxRtcManager>();
+                }
+            }
+
+            if (_rtcManager != null)
+            {
+                _audioSink = _rtcManager.AudioSink;
             }
         }
     }
@@ -160,11 +173,31 @@ public class BingBoxAudioManager : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (_currentTarget == null && _trackedItems.Count > 0)
+        if (_trackedItems.Count > 0)
         {
-            _trackedItems.RemoveAll(item => item == null);
-            UpdateTarget();
-            return;
+            // Optimize removal: RemoveAll allocates a delegate every frame.
+            // Manual backward loop is allocation-free.
+            bool needsUpdate = false;
+            for (int i = _trackedItems.Count - 1; i >= 0; i--)
+            {
+                if (_trackedItems[i] == null)
+                {
+                    _trackedItems.RemoveAt(i);
+                    needsUpdate = true;
+                }
+            }
+
+            if (needsUpdate)
+            {
+                UpdateTarget();
+            }
+
+            if (_currentTarget == null && _trackedItems.Count > 0)
+            {
+                // If we lost target but still have items, update again
+                UpdateTarget();
+                return;
+            }
         }
 
         if (_audioSource != null && _currentTarget != null)

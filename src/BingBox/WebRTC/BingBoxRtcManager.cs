@@ -59,7 +59,10 @@ namespace BingBox.WebRTC
             }
             catch (Exception ex)
             {
-                Plugin.Log.LogError($"[RtcManager] Error handling signaling: {ex}");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogError($"[RtcManager] Error handling signaling: {ex}");
+                }
             }
         }
 
@@ -169,7 +172,10 @@ namespace BingBox.WebRTC
             }
             catch (Exception ex)
             {
-                Plugin.Log.LogError($"[RtcManager] Error handling UPDATE: {ex}");
+                if (Plugin.DebugConfig.Value)
+                {
+                    Plugin.Log.LogError($"[RtcManager] Error handling UPDATE: {ex}");
+                }
             }
         }
 
