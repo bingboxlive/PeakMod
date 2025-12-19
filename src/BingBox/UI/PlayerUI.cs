@@ -271,7 +271,15 @@ public static class PlayerUI
                 controller.NextButton = btn;
             }
         }
+
+        var logo = parent.Find("BingBox_Logo");
+        if (logo != null)
+        {
+            var btn = logo.GetComponent<Button>() ?? logo.gameObject.AddComponent<Button>();
+            controller.LogoButton = btn;
+        }
     }
+
 
     private static void InjectInputComponent(RectTransform parent)
     {

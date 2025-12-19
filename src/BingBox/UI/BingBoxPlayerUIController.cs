@@ -18,6 +18,7 @@ namespace BingBox.UI
         public Button? PrevButton;
         public Button? NextButton;
         public Image? PlayPauseImage;
+        public Button? LogoButton;
 
         public TextMeshProUGUI? CurrentTimeText;
         public TextMeshProUGUI? TotalTimeText;
@@ -29,6 +30,9 @@ namespace BingBox.UI
         private long _currentTrackStart = 0;
         private long _totalPausedDuration = 0;
         private bool _hasTrack = false;
+
+        private BingBoxTrackInfo _pendingTrackInfo = new BingBoxTrackInfo();
+        private bool _trackDataChanged = false;
 
         private string? _lastThumbnailUrl;
         private Coroutine? _downloadCoroutine;
@@ -61,12 +65,43 @@ namespace BingBox.UI
 
             if (BingBoxWebClient.Instance != null && BingBoxWebClient.Instance.RtcManager != null)
             {
-                BingBoxWebClient.Instance.RtcManager.OnTrackUpdate += UpdateUI;
+                BingBoxWebClient.Instance.RtcManager.OnTrackUpdate += OnTrackReceived;
+            }
+
+            if (LogoButton != null)
+            {
+                LogoButton.onClick.AddListener(OnLogoClicked);
             }
         }
 
+        private bool _wasVisible = false;
+
+        private float _lastDebugTime = 0f;
+
         private void Update()
         {
+            if (Time.unscaledTime - _lastDebugTime > 3.0f)
+            {
+                DebugVisibility();
+                _lastDebugTime = Time.unscaledTime;
+            }
+
+            bool isVisible = IsVisible();
+            if (isVisible != _wasVisible)
+            {
+                if (isVisible) Plugin.Log.LogInfo("PAUSE MENU APPEARED");
+                else Plugin.Log.LogInfo("PAUSE MENU DISAPPEARED");
+                _wasVisible = isVisible;
+            }
+
+            if (!isVisible) return;
+
+            if (_trackDataChanged)
+            {
+                UpdateTrackUI();
+                _trackDataChanged = false;
+            }
+
             if (!_hasTrack || _isPaused || _currentTrackStart <= 0) return;
 
             long now = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -80,64 +115,39 @@ namespace BingBox.UI
             UpdateProgressDisplay(elapsedSec, totalSec);
         }
 
-        private void UpdateProgressDisplay(float current, float total)
+        private void DebugVisibility()
         {
-            if (current > total && total > 0) current = total;
-
-            if (CurrentTimeText != null) CurrentTimeText.text = FormatTime(current);
-            if (TotalTimeText != null) TotalTimeText.text = FormatTime(total);
-
-            if (ProgressFillRect != null)
+            var t = transform;
+            Plugin.Log.LogInfo($"--- VISIBILITY REPORT ({gameObject.name}) ---");
+            while (t != null)
             {
-                float pct = (total > 0) ? (current / total) : 0f;
-                if (pct > 1f) pct = 1f;
-                float width = MaxProgressWidth * pct;
-                ProgressFillRect.sizeDelta = new Vector2(width, 0);
+                string info = $"{t.name}: Active={t.gameObject.activeSelf}, Scale={t.localScale}";
+                var cg = t.GetComponent<CanvasGroup>();
+                if (cg != null) info += $", CG.Alpha={cg.alpha}";
+                var c = t.GetComponent<Canvas>();
+                if (c != null) info += $", Canvas.Enabled={c.enabled}";
+
+                Plugin.Log.LogInfo(info);
+                t = t.parent;
             }
+            Plugin.Log.LogInfo("-------------------------------------------");
         }
 
-        private string FormatTime(float seconds)
+        private bool IsVisible()
         {
-            if (float.IsNaN(seconds) || seconds < 0) seconds = 0;
-            int m = Mathf.FloorToInt(seconds / 60);
-            int s = Mathf.FloorToInt(seconds % 60);
-            return $"{m}:{s:00}";
-        }
+            if (!gameObject.activeInHierarchy) return false;
 
-        private void OnPlayPauseClicked()
-        {
-            if (BingBoxWebClient.Instance == null) return;
+            var group = GetComponentInParent<CanvasGroup>();
+            if (group != null && group.alpha == 0) return false;
 
-            string type = _isPaused ? "RESUME" : "PAUSE";
-            BingBoxWebClient.Instance.SendJson($"{{\"type\": \"{type}\"}}");
-
-        }
-
-        private void OnPrevClicked()
-        {
-            if (BingBoxWebClient.Instance == null) return;
-            BingBoxWebClient.Instance.SendJson("{\"type\": \"PREVIOUS\"}");
-        }
-
-        private void OnNextClicked()
-        {
-            if (BingBoxWebClient.Instance == null) return;
-            BingBoxWebClient.Instance.SendJson("{\"type\": \"SKIP\"}");
-        }
-
-        private void SetupText(TextMeshProUGUI? text)
-        {
-            if (text != null)
-            {
-                text.textWrappingMode = TextWrappingModes.NoWrap;
-            }
+            return true;
         }
 
         private void OnDestroy()
         {
             if (BingBoxWebClient.Instance != null && BingBoxWebClient.Instance.RtcManager != null)
             {
-                BingBoxWebClient.Instance.RtcManager.OnTrackUpdate -= UpdateUI;
+                BingBoxWebClient.Instance.RtcManager.OnTrackUpdate -= OnTrackReceived;
             }
 
             if (_downloadCoroutine != null)
@@ -147,8 +157,23 @@ namespace BingBox.UI
             }
         }
 
-        private void UpdateUI(BingBoxTrackInfo info)
+        private void OnTrackReceived(BingBoxTrackInfo info)
         {
+            lock (_pendingTrackInfo)
+            {
+                _pendingTrackInfo = info;
+                _trackDataChanged = true;
+            }
+        }
+
+        private void UpdateTrackUI()
+        {
+            BingBoxTrackInfo info;
+            lock (_pendingTrackInfo)
+            {
+                info = _pendingTrackInfo;
+            }
+
             Plugin.Log.LogInfo($"[UIController] UpdateUI: Title='{info.Title}' Clean='{info.CleanTitle}' Artist='{info.Artist}' DisplayArtist='{info.DisplayArtist}' Thumb='{info.Thumbnail}' Paused={info.IsPaused}");
 
             _isPaused = info.IsPaused;
@@ -212,6 +237,63 @@ namespace BingBox.UI
                 {
                     if (CurrentTimeText != null) CurrentTimeText.text = "0:00";
                 }
+            }
+        }
+
+        private void UpdateProgressDisplay(float current, float total)
+        {
+            if (current > total && total > 0) current = total;
+
+            if (CurrentTimeText != null) CurrentTimeText.text = FormatTime(current);
+            if (TotalTimeText != null) TotalTimeText.text = FormatTime(total);
+
+            if (ProgressFillRect != null)
+            {
+                float pct = (total > 0) ? (current / total) : 0f;
+                if (pct > 1f) pct = 1f;
+                float width = MaxProgressWidth * pct;
+                ProgressFillRect.sizeDelta = new Vector2(width, 0);
+            }
+        }
+
+        private string FormatTime(float seconds)
+        {
+            if (float.IsNaN(seconds) || seconds < 0) seconds = 0;
+            int m = Mathf.FloorToInt(seconds / 60);
+            int s = Mathf.FloorToInt(seconds % 60);
+            return $"{m}:{s:00}";
+        }
+
+        private void OnPlayPauseClicked()
+        {
+            if (BingBoxWebClient.Instance == null) return;
+
+            string type = _isPaused ? "RESUME" : "PAUSE";
+            BingBoxWebClient.Instance.SendJson($"{{\"type\": \"{type}\"}}");
+        }
+
+        private void OnLogoClicked()
+        {
+            Application.OpenURL("https://bingbox.live");
+        }
+
+        private void OnPrevClicked()
+        {
+            if (BingBoxWebClient.Instance == null) return;
+            BingBoxWebClient.Instance.SendJson("{\"type\": \"PREVIOUS\"}");
+        }
+
+        private void OnNextClicked()
+        {
+            if (BingBoxWebClient.Instance == null) return;
+            BingBoxWebClient.Instance.SendJson("{\"type\": \"SKIP\"}");
+        }
+
+        private void SetupText(TextMeshProUGUI? text)
+        {
+            if (text != null)
+            {
+                text.textWrappingMode = TextWrappingModes.NoWrap;
             }
         }
 

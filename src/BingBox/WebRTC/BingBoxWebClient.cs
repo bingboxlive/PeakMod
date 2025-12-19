@@ -132,23 +132,44 @@ namespace BingBox.WebRTC
             }
         }
 
+        private byte[] _receiveBuffer = new byte[32 * 1024]; // Start with 32KB
+        private int _receiveCount = 0;
+
         private async void ReceiveLoop()
         {
-            var buffer = new byte[8192];
+            var chunkBuffer = new byte[8192];
             try
             {
                 while (_ws != null && _ws.State == WebSocketState.Open && _cts != null && !_cts.IsCancellationRequested)
                 {
-                    var result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    _receiveCount = 0;
+                    WebSocketReceiveResult result;
+                    do
                     {
-                        Plugin.Log.LogInfo("[WebClient] Server closed connection.");
-                        await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
-                        break;
-                    }
+                        result = await _ws.ReceiveAsync(new ArraySegment<byte>(chunkBuffer), _cts.Token);
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            Plugin.Log.LogInfo("[WebClient] Server closed connection.");
+                            await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                            return;
+                        }
 
-                    var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    await _rtcManager.HandleSignalingMessage(message);
+                        if (_receiveCount + result.Count > _receiveBuffer.Length)
+                        {
+                            int newSize = Math.Max(_receiveBuffer.Length * 2, _receiveCount + result.Count);
+                            Array.Resize(ref _receiveBuffer, newSize);
+                        }
+
+                        Buffer.BlockCopy(chunkBuffer, 0, _receiveBuffer, _receiveCount, result.Count);
+                        _receiveCount += result.Count;
+                    }
+                    while (!result.EndOfMessage);
+
+                    if (result.MessageType == WebSocketMessageType.Text)
+                    {
+                        var message = Encoding.UTF8.GetString(_receiveBuffer, 0, _receiveCount);
+                        await _rtcManager.HandleSignalingMessage(message);
+                    }
                 }
             }
             catch (Exception ex)
