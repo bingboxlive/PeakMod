@@ -14,6 +14,7 @@ namespace BingBox.UI
         public TextMeshProUGUI? TitleText;
         public TextMeshProUGUI? ArtistText;
         public TextMeshProUGUI? RequesterText;
+        public TextMeshProUGUI? DetailsText;
         public Image? AlbumArtImage;
         public Button? RemoveButton;
 
@@ -40,6 +41,22 @@ namespace BingBox.UI
             }
 
             if (RequesterText != null) RequesterText.text = $"Req: {info.AddedBy}";
+
+            if (DetailsText != null)
+            {
+                string durationStr = FormatDuration(info.DurationSec);
+                string timeStr = "Unknown";
+                if (info.AddedAt > 0)
+                {
+                    try
+                    {
+                        var dto = System.DateTimeOffset.FromUnixTimeMilliseconds(info.AddedAt).ToLocalTime();
+                        timeStr = dto.ToString("HH:mm");
+                    }
+                    catch { }
+                }
+                DetailsText.text = $"{durationStr} | Requested at: {timeStr}";
+            }
 
             if (RemoveButton != null)
             {
@@ -74,6 +91,14 @@ namespace BingBox.UI
             }
         }
 
+        private string FormatDuration(long seconds)
+        {
+            if (seconds < 0) seconds = 0;
+            long m = seconds / 60;
+            long s = seconds % 60;
+            return $"{m}:{s:00}";
+        }
+
         private IEnumerator LoadThumbnail(string url)
         {
             if (AlbumArtImage == null)
@@ -92,7 +117,13 @@ namespace BingBox.UI
                     if (tex != null && AlbumArtImage != null)
                     {
                         Plugin.Log.LogInfo($"[QueueItem] Applied art for {Id}");
-                        var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+
+                        int side = Mathf.Min(tex.width, tex.height);
+                        int xOffset = (tex.width - side) / 2;
+                        int yOffset = (tex.height - side) / 2;
+                        var cropRect = new Rect(xOffset, yOffset, side, side);
+
+                        var sprite = Sprite.Create(tex, cropRect, new Vector2(0.5f, 0.5f));
                         AlbumArtImage.sprite = sprite;
                         AlbumArtImage.color = Color.white;
                     }

@@ -123,6 +123,8 @@ namespace BingBox.WebRTC
                             qItem.Thumbnail = Sanitize(ExtractJsonValue(itemJson, "thumbnail"));
                             qItem.AddedBy = Sanitize(ExtractJsonValue(itemJson, "addedBy"));
                             qItem.Id = Sanitize(ExtractJsonValue(itemJson, "id"));
+                            qItem.DurationSec = long.TryParse(ExtractJsonValue(itemJson, "durationSec", false), out var qDur) ? qDur : 0;
+                            qItem.AddedAt = long.TryParse(ExtractJsonValue(itemJson, "addedAt", false), out var aa) ? aa : 0;
 
                             queueList.Add(qItem);
 

@@ -12,6 +12,7 @@ namespace BingBox.Network
         public long StartedAt = 0;
         public long DurationSec = 0;
         public long TotalPausedDuration = 0;
+        public long AddedAt = 0;
 
         public bool IsVideo => !string.IsNullOrEmpty(CleanTitle);
 

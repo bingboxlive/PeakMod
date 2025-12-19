@@ -79,6 +79,14 @@ public static class FooterUI
             inputComp.characterValidation = TMP_InputField.CharacterValidation.Alphanumeric;
             if (inputComp.placeholder is TextMeshProUGUI ph) ph.text = "Room ID...";
 
+            inputComp.onEndEdit.AddListener((val) =>
+            {
+                if (!string.IsNullOrEmpty(val))
+                {
+                    RoomIdManager.SetRoomId(val);
+                }
+            });
+
             var rt = wrapper.GetComponent<RectTransform>();
             rt.anchorMin = new Vector2(0, 1);
             rt.anchorMax = new Vector2(0, 1);

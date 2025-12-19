@@ -260,12 +260,16 @@ public static class QueueUI
 
             var title = UIUtils.CreateTmpText("Title", "", itemObj.transform, fontAsset, 20f, new Vector2(86f, 0f), Color.white);
             itemComp.TitleText = title.GetComponent<TextMeshProUGUI>();
+            itemComp.TitleText.textWrappingMode = TextWrappingModes.NoWrap;
 
             var artist = UIUtils.CreateTmpText("Artist", "", itemObj.transform, fontAsset, 16f, new Vector2(86f, -20f), new Color(0.8f, 0.8f, 0.8f, 1f));
             itemComp.ArtistText = artist.GetComponent<TextMeshProUGUI>();
 
             var req = UIUtils.CreateTmpText("Requester", "", itemObj.transform, fontAsset, 12f, new Vector2(86f, -38f), new Color(1f, 1f, 1f, 0.5f));
             itemComp.RequesterText = req.GetComponent<TextMeshProUGUI>();
+
+            var details = UIUtils.CreateTmpText("Details", "", itemObj.transform, fontAsset, 10f, new Vector2(86f, -54f), new Color(1f, 1f, 1f, 0.15f));
+            itemComp.DetailsText = details.GetComponent<TextMeshProUGUI>();
 
 
             var xObj = UIUtils.CreateTmpText("RemoveButton", "X", itemObj.transform, fontAsset, 24f, new Vector2(-20f, 8f), Color.red);

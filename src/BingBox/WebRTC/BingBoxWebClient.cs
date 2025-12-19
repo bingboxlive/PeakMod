@@ -28,10 +28,12 @@ namespace BingBox.WebRTC
         private void Start()
         {
             Connect();
+            RoomIdManager.OnRoomIdChanged += HandleRoomChange;
         }
 
         private void OnDestroy()
         {
+            RoomIdManager.OnRoomIdChanged -= HandleRoomChange;
             _rtcManager?.Close();
             Disconnect();
         }
@@ -105,6 +107,14 @@ namespace BingBox.WebRTC
             var json = $"{{\"type\": \"JOIN_ROOM\", \"roomId\": \"{roomId}\", \"userId\": \"{userId}\", \"userName\": \"{userName}\"}}";
 
             SendJson(json);
+        }
+
+        private void HandleRoomChange(string newRoomId)
+        {
+            Plugin.Log.LogInfo($"[WebClient] Switching to room: {newRoomId}");
+            SendJoinRoom();
+            _rtcManager.Close();
+            _rtcManager.JoinStream();
         }
 
         public async void SendJson(string json)

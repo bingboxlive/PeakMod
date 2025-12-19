@@ -5,6 +5,7 @@ namespace BingBox.Utils;
 public static class RoomIdManager
 {
     public static string CurrentRoomId { get; private set; } = "?????";
+    public static event Action<string>? OnRoomIdChanged;
 
     public static string GenerateNewRoomId()
     {
@@ -15,7 +16,15 @@ public static class RoomIdManager
         {
             stringChars[i] = chars[random.Next(chars.Length)];
         }
-        CurrentRoomId = new string(stringChars);
-        return CurrentRoomId;
+        var newId = new string(stringChars);
+        SetRoomId(newId);
+        return newId;
+    }
+
+    public static void SetRoomId(string newRoomId)
+    {
+        if (CurrentRoomId == newRoomId) return;
+        CurrentRoomId = newRoomId;
+        OnRoomIdChanged?.Invoke(CurrentRoomId);
     }
 }
