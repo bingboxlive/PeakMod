@@ -148,4 +148,16 @@ public class SteamLobbyManager
         if (Plugin.DebugConfig.Value)
             Plugin.Log.LogInfo($"[SteamLobbyManager] Intercepted LeaveLobby. Regenerated Room ID: {newId}");
     }
+    public void ForceSync()
+    {
+        if (_currentLobbyId != CSteamID.Nil)
+        {
+            if (SteamMatchmaking.GetLobbyOwner(_currentLobbyId) == SteamUser.GetSteamID())
+            {
+                SetRoomIdToLobby(_currentLobbyId, RoomIdManager.CurrentRoomId);
+                if (Plugin.DebugConfig.Value)
+                    Plugin.Log.LogInfo($"[SteamLobbyManager] Forced Sync due to Toggle: {RoomIdManager.CurrentRoomId}");
+            }
+        }
+    }
 }

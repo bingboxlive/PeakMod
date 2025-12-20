@@ -209,6 +209,9 @@ public static class FooterUI
                 }
             }
             wrapper.SetActive(true);
+
+            var watcher = inputComp.gameObject.AddComponent<BingBoxRoomIdWatcher>();
+            watcher.Setup(inputComp);
         }
     }
 
@@ -255,6 +258,11 @@ public static class FooterUI
         {
             Plugin.SyncRoomWithLobby = val;
             Plugin.Log.LogInfo($"[BingBox] SyncRoomWithLobby set to {val}");
+
+            if (val && Plugin.Instance != null && Plugin.Instance.SteamLobbyManager != null)
+            {
+                Plugin.Instance.SteamLobbyManager.ForceSync();
+            }
         });
 
         if (fontAsset != null)
@@ -449,6 +457,30 @@ public static class FooterUI
             if (_classicCg != null) _classicCg.alpha = (mode == "classic") ? 1f : 0.2f;
             if (_roundRobinCg != null) _roundRobinCg.alpha = (mode == "roundrobin") ? 1f : 0.2f;
             if (_shuffleCg != null) _shuffleCg.alpha = (mode == "shuffle") ? 1f : 0.2f;
+        }
+    }
+
+    public class BingBoxRoomIdWatcher : MonoBehaviour
+    {
+        private TMP_InputField? _input;
+
+        public void Setup(TMP_InputField input)
+        {
+            _input = input;
+            RoomIdManager.OnRoomIdChanged += OnRoomIdChanged;
+        }
+
+        private void OnDestroy()
+        {
+            RoomIdManager.OnRoomIdChanged -= OnRoomIdChanged;
+        }
+
+        private void OnRoomIdChanged(string newId)
+        {
+            if (_input != null && _input.text != newId)
+            {
+                _input.text = newId;
+            }
         }
     }
 }
