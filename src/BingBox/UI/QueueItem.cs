@@ -63,7 +63,8 @@ namespace BingBox.UI
                 RemoveButton.onClick.RemoveAllListeners();
                 RemoveButton.onClick.AddListener(() =>
                 {
-                    Plugin.Log.LogInfo($"[QueueItem] Remove clicked for ID: {Id}");
+                    if (Plugin.DebugConfig.Value)
+                        Plugin.Log.LogInfo($"[QueueItem] Remove clicked for ID: {Id}");
                     onRemove(Id);
                 });
             }
@@ -80,13 +81,15 @@ namespace BingBox.UI
                 _currentThumbnailUrl = thumbUrl;
                 if (!string.IsNullOrEmpty(_currentThumbnailUrl))
                 {
-                    Plugin.Log.LogInfo($"[QueueItem] Loading art for {Id}: {_currentThumbnailUrl}");
+                    if (Plugin.DebugConfig.Value)
+                        Plugin.Log.LogInfo($"[QueueItem] Loading art for {Id}: {_currentThumbnailUrl}");
                     if (_loadCoroutine != null) StopCoroutine(_loadCoroutine);
                     _loadCoroutine = StartCoroutine(LoadThumbnail(_currentThumbnailUrl));
                 }
                 else
                 {
-                    Plugin.Log.LogInfo($"[QueueItem] No thumbnail for {Id}");
+                    if (Plugin.DebugConfig.Value)
+                        Plugin.Log.LogInfo($"[QueueItem] No thumbnail for {Id}");
                 }
             }
         }
@@ -116,7 +119,8 @@ namespace BingBox.UI
                     var tex = DownloadHandlerTexture.GetContent(uwr);
                     if (tex != null && AlbumArtImage != null)
                     {
-                        Plugin.Log.LogInfo($"[QueueItem] Applied art for {Id}");
+                        if (Plugin.DebugConfig.Value)
+                            Plugin.Log.LogInfo($"[QueueItem] Applied art for {Id}");
 
                         int side = Mathf.Min(tex.width, tex.height);
                         int xOffset = (tex.width - side) / 2;
@@ -130,7 +134,8 @@ namespace BingBox.UI
                 }
                 else
                 {
-                    Plugin.Log.LogError($"[QueueItem] Failed to load art for {Id}: {uwr.error}");
+                    if (Plugin.DebugConfig.Value)
+                        Plugin.Log.LogError($"[QueueItem] Failed to load art for {Id}: {uwr.error}");
                 }
             }
         }

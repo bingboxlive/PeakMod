@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading.Tasks;
 using SIPSorcery.Net;
 using SIPSorcery.SIP;
@@ -8,7 +9,9 @@ using SIPSorceryMedia.Abstractions;
 using BingBox.Utils;
 using UnityEngine;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using BingBox.Network;
+
 
 namespace BingBox.WebRTC
 {
@@ -31,7 +34,6 @@ namespace BingBox.WebRTC
                 Plugin.Log.LogError("[RtcManager] WebClient not assigned.");
                 return;
             }
-            // Use an anonymous object for simpler sending if desired, or just raw string
             _client.SendJson("{\"type\": \"JOIN_STREAM\"}");
         }
 
@@ -45,41 +47,22 @@ namespace BingBox.WebRTC
 
         public async Task HandleSignalingMessage(string json)
         {
+            if (Plugin.DebugConfig.Value)
+            {
+                Plugin.Log.LogInfo($"[RtcManager] Received Signal: {json}");
+            }
             try
             {
-                // First pass: Deserialize as a generic wrapper to check type.
-                // We use partial deserialization logic or just check the type field first.
-                // For efficiency/simplicity with Newtonsoft, we can deserialize to a common wrapper
-                // that has optional fields, or dynamic.
-                // Given our Models, SignalingMessage covers internal signaling.
-                // SignalUpdateMessage covers 'update'.
-                // Since they are distinct structures, we can do a quick check on "type" or try/catch.
-
-                // Fast path: check type string roughly, or just deserialize to a JObject if we wanted.
-                // But efficient path: Deserialize to a structural subset.
-
-                // Let's assume standard structure: { type: "..." }
-                // We can use a lightweight struct or JObject or dynamic.
-
-                // Simplest: Check type via Newtonsoft JObject (robust)
-                // var jobj = Newtonsoft.Json.Linq.JObject.Parse(json);
-                // var type = jobj["type"]?.ToString();
-
-                // Or use our SignalingMessage which has "Type"
-                var msg = JsonConvert.DeserializeObject<SignalingMessage>(json);
-                if (msg == null) return;
-
-                if (string.Equals(msg.Type, "OFFER", StringComparison.OrdinalIgnoreCase))
+                if (json.Contains("\"type\": \"OFFER\"") || json.Contains("\"type\":\"OFFER\""))
                 {
-                    await HandleOffer(msg);
+                    await HandleOffer(json);
                 }
-                else if (string.Equals(msg.Type, "ICE_CANDIDATE", StringComparison.OrdinalIgnoreCase))
+                else if (json.Contains("\"type\": \"ICE_CANDIDATE\"") || json.Contains("\"type\":\"ICE_CANDIDATE\""))
                 {
-                    HandleIceCandidate(msg);
+                    HandleIceCandidate(json);
                 }
-                else if (string.Equals(msg.Type, "UPDATE", StringComparison.OrdinalIgnoreCase))
+                else if (json.Contains("\"type\": \"UPDATE\"") || json.Contains("\"type\":\"UPDATE\""))
                 {
-                    // SignalingMessage might not have the update fields, so re-deserialize as update
                     var updateMsg = JsonConvert.DeserializeObject<SignalUpdateMessage>(json);
                     if (updateMsg != null)
                     {
@@ -100,7 +83,6 @@ namespace BingBox.WebRTC
         {
             try
             {
-                // check mode
                 if (!string.IsNullOrEmpty(msg.QueueMode))
                 {
                     if (CurrentQueueMode != msg.QueueMode)
@@ -111,14 +93,17 @@ namespace BingBox.WebRTC
                     }
                 }
 
-                if (msg.CurrentTrack != null)
+                if (msg.CurrentTrack != null && msg.IsPlaying)
                 {
                     CurrentTrackInfo = msg.CurrentTrack;
+                    CurrentTrackInfo.IsPaused = msg.IsPaused;
+                    CurrentTrackInfo.StartedAt = msg.StartedAt ?? 0;
+                    CurrentTrackInfo.TotalPausedDuration = msg.TotalPausedDuration ?? 0;
+
                     OnTrackUpdate?.Invoke(CurrentTrackInfo);
                 }
                 else
                 {
-                    // Null track implies nothing playing
                     CurrentTrackInfo = new BingBoxTrackInfo();
                     OnTrackUpdate?.Invoke(CurrentTrackInfo);
                 }
@@ -138,21 +123,27 @@ namespace BingBox.WebRTC
             }
         }
 
-        private async Task HandleOffer(SignalingMessage msg)
+        private void CreatePeerConnection(List<RTCIceServer>? iceServers = null)
         {
-            if (Plugin.DebugConfig.Value)
-            {
-                Plugin.Log.LogInfo("[RtcManager] Received OFFER via Newtonsoft.");
-            }
+            var dtlsCert = CertificateUtils.GenerateSelfSignedRtcCertificate("BingBox");
+            if (Plugin.DebugConfig.Value) Plugin.Log.LogInfo($"[RtcManager] Generated DTLS Certificate.");
 
             var config = new RTCConfiguration
             {
-                iceServers = new List<RTCIceServer>
+                iceServers = iceServers ?? new List<RTCIceServer>
                 {
                     new RTCIceServer { urls = "stun:stun.l.google.com:19302" }
-                }
+                },
+                certificates2 = new List<RTCCertificate2>
+                {
+                    dtlsCert
+                },
+                bundlePolicy = RTCBundlePolicy.max_bundle,
+                rtcpMuxPolicy = RTCRtcpMuxPolicy.require
             };
 
+            if (Plugin.DebugConfig.Value)
+                Plugin.Log.LogInfo("[RtcManager] Creating Peer Connection with MaxBundle & RequireMux.");
             _pc = new RTCPeerConnection(config);
 
             var opusFormat = new SDPAudioVideoMediaFormat(SDPMediaTypesEnum.audio, 111, "opus", 48000, 2, "minptime=10;useinbandfec=1");
@@ -179,21 +170,29 @@ namespace BingBox.WebRTC
             {
                 if (candidate != null)
                 {
-                    // Construct ICE candidate JSON
-                    // We can use an anonymous object for serialization
-                    var candPayload = new
+                    if (Plugin.DebugConfig.Value) Plugin.Log.LogInfo($"[RtcManager] Generated ICE Candidate: {candidate.candidate}");
+
+                    string rawCand = candidate.candidate;
+                    if (!rawCand.StartsWith("candidate:"))
                     {
-                        type = "ICE_CANDIDATE",
-                        candidate = new
-                        {
-                            candidate = candidate.candidate,
-                            sdpMid = candidate.sdpMid,
-                            sdpMLineIndex = candidate.sdpMLineIndex
-                        }
-                    };
-                    string candJson = JsonConvert.SerializeObject(candPayload);
+                        rawCand = "candidate:" + rawCand;
+                    }
+
+                    string candJson = $"{{\"type\": \"ICE_CANDIDATE\", \"candidate\": {{ \"candidate\": \"{rawCand}\", \"sdpMid\": \"{candidate.sdpMid}\", \"sdpMLineIndex\": {candidate.sdpMLineIndex} }} }}";
                     _client.SendJson(candJson);
                 }
+            };
+
+            _pc.oniceconnectionstatechange += (state) =>
+            {
+                if (Plugin.DebugConfig.Value)
+                    Plugin.Log.LogInfo($"[RtcManager] ICE Connection State: {state}");
+            };
+
+            _pc.onicegatheringstatechange += (state) =>
+            {
+                if (Plugin.DebugConfig.Value)
+                    Plugin.Log.LogInfo($"[RtcManager] ICE Gathering State: {state}");
             };
 
             _pc.onconnectionstatechange += (state) =>
@@ -205,31 +204,34 @@ namespace BingBox.WebRTC
                 else
                 {
                     if (Plugin.DebugConfig.Value)
-                    {
                         Plugin.Log.LogInfo($"[RtcManager] Connection State: {state}");
-                    }
                 }
             };
+        }
 
-            // msg.Sdp is the object inside "sdp" key. 
-            // In some signaling, "sdp" might be the string directly or an object. 
-            // Our model defines SdpDetail. Let's verify usage.
-            // If the incoming JSON is { type: "OFFER", sdp: "..." } vs { type: "OFFER", sdp: { type: "offer", sdp: "..." } }
-            // The existing code manually parsed 'sdp' key.
-            // Based on models, we expect nested object.
-
-            string remoteSdpStr = "";
-            if (msg.Sdp != null)
+        private async Task HandleOffer(string json)
+        {
+            if (Plugin.DebugConfig.Value)
             {
-                remoteSdpStr = msg.Sdp.Sdp;
+                Plugin.Log.LogInfo("[RtcManager] Received OFFER via Manual Parsing.");
             }
+
+            string remoteSdpStr = ExtractSdpFromOffer(json);
 
             if (!string.IsNullOrEmpty(remoteSdpStr))
             {
-                if (Plugin.DebugConfig.Value)
+                if (_pc != null)
                 {
-                    Plugin.Log.LogInfo("[RtcManager] Parsed SDP successfully.");
+                    Plugin.Log.LogInfo("[RtcManager] Disposing existing PeerConnection for new Offer...");
+                    _pc.Close("Replacing PC for new offer");
+                    _pc.Dispose();
+                    _pc = null;
                 }
+
+                _pendingCandidates.Clear();
+
+                var iceServers = ExtractIceServers(json);
+                CreatePeerConnection(iceServers);
 
                 var remoteDesc = new RTCSessionDescriptionInit
                 {
@@ -237,7 +239,7 @@ namespace BingBox.WebRTC
                     sdp = remoteSdpStr
                 };
 
-                var result = _pc.setRemoteDescription(remoteDesc);
+                var result = _pc!.setRemoteDescription(remoteDesc);
                 if (result != SetDescriptionResultEnum.OK)
                 {
                     Plugin.Log.LogError($"[RtcManager] Failed to set remote description: {result}");
@@ -253,18 +255,11 @@ namespace BingBox.WebRTC
                 var answer = _pc.createAnswer(null);
                 await _pc.setLocalDescription(answer);
 
-                // Send Answer
-                var answerPayload = new
-                {
-                    type = "ANSWER",
-                    sdp = new
-                    {
-                        type = "answer",
-                        sdp = answer.sdp
-                    }
-                };
+                string cleanSdp = answer.sdp.Replace("\r", "").Replace("\n", "\\n");
+                cleanSdp = cleanSdp.Replace("\"", "\\\"");
 
-                string answerJson = JsonConvert.SerializeObject(answerPayload);
+                string answerJson = $"{{\"type\": \"ANSWER\", \"sdp\": {{ \"type\": \"answer\", \"sdp\": \"{cleanSdp}\" }} }}";
+
                 _client.SendJson(answerJson);
 
                 if (Plugin.DebugConfig.Value)
@@ -278,26 +273,39 @@ namespace BingBox.WebRTC
             }
         }
 
-        private void HandleIceCandidate(SignalingMessage msg)
+        private void HandleIceCandidate(string json)
         {
             try
             {
-                if (msg.Candidate != null)
+                string candidateObj = ExtractJsonObject(json, "candidate");
+                if (!string.IsNullOrEmpty(candidateObj))
                 {
-                    var init = new RTCIceCandidateInit
-                    {
-                        candidate = msg.Candidate.Candidate,
-                        sdpMid = msg.Candidate.SdpMid,
-                        sdpMLineIndex = (ushort)msg.Candidate.SdpMLineIndex
-                    };
+                    string candStr = ExtractJsonValue(candidateObj, "candidate");
+                    string sdpMid = ExtractJsonValue(candidateObj, "sdpMid");
 
-                    if (_pc != null && _pc.remoteDescription != null)
+                    string sdpLineIndexStr = ExtractJsonValue(candidateObj, "sdpMLineIndex");
+                    int sdpLineIndex = 0;
+                    if (!string.IsNullOrEmpty(sdpLineIndexStr)) int.TryParse(sdpLineIndexStr, out sdpLineIndex);
+
+                    if (!string.IsNullOrEmpty(candStr))
                     {
-                        _pc.addIceCandidate(init);
-                    }
-                    else
-                    {
-                        _pendingCandidates.Add(init);
+                        var init = new RTCIceCandidateInit
+                        {
+                            candidate = candStr,
+                            sdpMid = sdpMid,
+                            sdpMLineIndex = (ushort)sdpLineIndex
+                        };
+
+                        if (Plugin.DebugConfig.Value) Plugin.Log.LogInfo($"[RtcManager] Received ICE Candidate: {candStr}");
+
+                        if (_pc != null && _pc.remoteDescription != null)
+                        {
+                            _pc.addIceCandidate(init);
+                        }
+                        else
+                        {
+                            _pendingCandidates.Add(init);
+                        }
                     }
                 }
             }
@@ -312,5 +320,152 @@ namespace BingBox.WebRTC
             _pc?.Close("Application closing");
             _pc = null;
         }
+
+        private string ExtractJsonValue(string json, string key)
+        {
+            try
+            {
+                string keyPattern = $"\"{key}\":";
+                int keyIdx = json.IndexOf(keyPattern);
+                if (keyIdx == -1) return "";
+
+                int valStart = keyIdx + keyPattern.Length;
+
+                int startQuote = json.IndexOf("\"", valStart);
+
+                int scan = valStart;
+                while (scan < json.Length && (char.IsWhiteSpace(json[scan]))) scan++;
+
+                if (scan >= json.Length) return "";
+
+                if (json[scan] == '"')
+                {
+                    int endQuote = json.IndexOf("\"", scan + 1);
+                    if (endQuote == -1) return "";
+                    return json.Substring(scan + 1, endQuote - scan - 1);
+                }
+                else
+                {
+                    int end = scan;
+                    while (end < json.Length && json[end] != ',' && json[end] != '}') end++;
+                    return json.Substring(scan, end - scan).Trim();
+                }
+            }
+            catch { return ""; }
+        }
+
+        private string ExtractJsonObject(string json, string key)
+        {
+            try
+            {
+                string keyPattern = $"\"{key}\":";
+                int keyIdx = json.IndexOf(keyPattern);
+                if (keyIdx == -1) return "";
+
+                int startBrace = json.IndexOf("{", keyIdx + keyPattern.Length);
+                if (startBrace == -1) return "";
+
+                int braceCount = 1;
+                int i = startBrace + 1;
+                while (i < json.Length && braceCount > 0)
+                {
+                    if (json[i] == '{') braceCount++;
+                    else if (json[i] == '}') braceCount--;
+                    i++;
+                }
+
+                if (braceCount == 0) return json.Substring(startBrace, i - startBrace + 1);
+                return "";
+            }
+            catch { return ""; }
+        }
+
+        private string ExtractSdpFromOffer(string json)
+        {
+            string sdpObj = ExtractJsonObject(json, "sdp");
+            if (string.IsNullOrEmpty(sdpObj)) return "";
+
+            string keyPattern = "\"sdp\":";
+            int keyIdx = sdpObj.IndexOf(keyPattern);
+            if (keyIdx == -1) return "";
+
+            int startQuote = sdpObj.IndexOf("\"", keyIdx + keyPattern.Length);
+            if (startQuote == -1) return "";
+
+            StringBuilder sb = new StringBuilder();
+            bool escaped = false;
+            for (int i = startQuote + 1; i < sdpObj.Length; i++)
+            {
+                char c = sdpObj[i];
+                if (escaped)
+                {
+                    if (c == 'r') sb.Append('\r');
+                    else if (c == 'n') sb.Append('\n');
+                    else if (c == 't') sb.Append('\t');
+                    else if (c == '"') sb.Append('"');
+                    else if (c == '\\') sb.Append('\\');
+                    else sb.Append(c);
+                    escaped = false;
+                }
+                else
+                {
+                    if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        return sb.ToString();
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+                }
+            }
+            return sb.ToString();
+        }
+
+        private List<RTCIceServer>? ExtractIceServers(string json)
+        {
+            try
+            {
+                var jObj = JObject.Parse(json);
+                var serversToken = jObj["iceServers"];
+                if (serversToken != null && serversToken.Type == JTokenType.Array)
+                {
+                    var list = new List<RTCIceServer>();
+                    foreach (var server in serversToken)
+                    {
+                        string? urls = server["urls"]?.ToString();
+                        string? username = server["username"]?.ToString();
+                        string? credential = server["credential"]?.ToString();
+
+                        if (!string.IsNullOrEmpty(urls))
+                        {
+                            var rtcServer = new RTCIceServer { urls = urls };
+                            if (!string.IsNullOrEmpty(username)) rtcServer.username = username;
+                            if (!string.IsNullOrEmpty(credential)) rtcServer.credential = credential;
+                            list.Add(rtcServer);
+                        }
+                    }
+                    if (list.Count > 0)
+                    {
+                        if (Plugin.DebugConfig.Value) Plugin.Log.LogInfo($"[RtcManager] Parsed {list.Count} custom ICE servers.");
+                        return list;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (Plugin.DebugConfig.Value) Plugin.Log.LogError($"[RtcManager] Failed to parse ICE servers: {ex}");
+            }
+            return null;
+        }
+
+
+
+
+
     }
 }

@@ -56,11 +56,9 @@ namespace BingBox.Network
         [JsonProperty("type")]
         public string Type { get; set; } = "";
 
-        // Structure for OFFER/ANSWER: { "type": "...", "sdp": { ... } }
         [JsonProperty("sdp")]
         public SdpDetail? Sdp { get; set; }
 
-        // Structure for ICE_CANDIDATE: { "type": "...", "candidate": { ... } }
         [JsonProperty("candidate")]
         public IceCandidateDetail? Candidate { get; set; }
     }
@@ -96,6 +94,18 @@ namespace BingBox.Network
 
         [JsonProperty("queueMode")]
         public string QueueMode { get; set; } = "";
+
+        [JsonProperty("isPlaying")]
+        public bool IsPlaying { get; set; }
+
+        [JsonProperty("isPaused")]
+        public bool IsPaused { get; set; }
+
+        [JsonProperty("startedAt")]
+        public long? StartedAt { get; set; }
+
+        [JsonProperty("totalPausedDuration")]
+        public long? TotalPausedDuration { get; set; }
 
         [JsonProperty("currentTrack")]
         public BingBoxTrackInfo? CurrentTrack { get; set; }

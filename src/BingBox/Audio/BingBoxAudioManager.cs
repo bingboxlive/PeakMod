@@ -83,7 +83,6 @@ public class BingBoxAudioManager : MonoBehaviour
         {
             if (_rtcManager == null)
             {
-                // Throttle GetComponent check
                 _connectionCheckTimer -= Time.deltaTime;
                 if (_connectionCheckTimer <= 0)
                 {
@@ -175,8 +174,6 @@ public class BingBoxAudioManager : MonoBehaviour
     {
         if (_trackedItems.Count > 0)
         {
-            // Optimize removal: RemoveAll allocates a delegate every frame.
-            // Manual backward loop is allocation-free.
             bool needsUpdate = false;
             for (int i = _trackedItems.Count - 1; i >= 0; i--)
             {
@@ -194,7 +191,6 @@ public class BingBoxAudioManager : MonoBehaviour
 
             if (_currentTarget == null && _trackedItems.Count > 0)
             {
-                // If we lost target but still have items, update again
                 UpdateTarget();
                 return;
             }

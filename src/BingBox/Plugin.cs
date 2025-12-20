@@ -1,4 +1,5 @@
-﻿using BepInEx;
+using System;
+using BepInEx;
 using BepInEx.Configuration;
 using BingBox.Logging;
 using BingBox.Settings;
@@ -13,13 +14,17 @@ public partial class Plugin : BaseUnityPlugin
 {
     internal static LoggerWrapper Log { get; private set; } = null!;
     public static BepInEx.PluginInfo InstanceInfo { get; private set; } = null!;
+    public static Plugin Instance { get; private set; } = null!;
 
     private static ConfigEntry<string> _usernameConfig = null!;
     private static ConfigEntry<string> _liveUrlConfig = null!;
     private static ConfigEntry<string> _userIdConfig = null!;
     public static ConfigEntry<bool> DopplerConfig = null!;
     public static ConfigEntry<bool> DebugConfig = null!;
+    public static ConfigEntry<bool> UseWebSocketAudio = null!;
     public static bool SyncRoomWithLobby { get; set; } = true;
+
+    public BingBox.Network.SteamLobbyManager? SteamLobbyManager { get; private set; }
 
     public static string Username
     {
@@ -50,6 +55,7 @@ public partial class Plugin : BaseUnityPlugin
 
     private void Awake()
     {
+        Instance = this;
         Log = new LoggerWrapper(Logger);
 
         DependencyLoader.Init();
@@ -59,7 +65,8 @@ public partial class Plugin : BaseUnityPlugin
         _userIdConfig = Config.Bind("General", "UserId", "", "Unique Auto-Generated User ID. Do not edit.");
 
         DopplerConfig = Config.Bind("Settings", "DopplerEffect", true, "Enable Doppler Effect.");
-        DebugConfig = Config.Bind("Settings", "EnableDebugging", true, "Enable Debug Logging.");
+        DebugConfig = Config.Bind("Settings", "EnableDebugging", false, "Enable Debug Logging.");
+        UseWebSocketAudio = Config.Bind("Settings", "UseWebSocketAudio", false, "Use WebSocket for audio (Bypasses firewall/proxy issues).");
 
         if (string.IsNullOrEmpty(_userIdConfig.Value))
         {
@@ -82,7 +89,26 @@ public partial class Plugin : BaseUnityPlugin
         gameObject.AddComponent<BingBox.Audio.BingBoxAudioManager>();
 
         HarmonyLib.Harmony.CreateAndPatchAll(typeof(BingBox.Audio.ItemAudioPatch), "pro.kenn.bingbox.audio");
+        HarmonyLib.Harmony.CreateAndPatchAll(typeof(BingBox.Network.SteamMatchmakingPatch), "pro.kenn.bingbox.network");
 
+        try
+        {
+            SetupSipSorceryLogging();
+        }
+        catch (System.Exception ex)
+        {
+            Log.LogError($"Failed to setup SIPSorcery logging: {ex}");
+        }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void SetupSipSorceryLogging()
+    {
+        if (DebugConfig.Value)
+        {
+            SIPSorcery.LogFactory.Set(new BingBox.Logging.BepInExLoggerFactory(Logger));
+            Log.LogInfo("SIPSorcery Logging Enabled");
+        }
     }
 
     private void Start()
@@ -102,6 +128,15 @@ public partial class Plugin : BaseUnityPlugin
             }
 
             gameObject.AddComponent<BingBoxWebClient>();
+
+            try
+            {
+                SteamLobbyManager = new BingBox.Network.SteamLobbyManager();
+            }
+            catch (Exception ex)
+            {
+                Log.LogError($"Failed to initialize SteamLobbyManager: {ex.Message}");
+            }
         }
         else
         {
